@@ -12,6 +12,16 @@ readme = "README.md"
 dir   = "docs"
 label = "Reference"
 
+[[link]]
+label = "GitHub"
+icon = "github"
+url  = "https://github.com/Toyz/retro_rt"
+
+[[link]]
+label = "GitHub Issues"
+icon = "github"
+url  = "https://github.com/Toyz/retro_rt/issues"
+
 [index]
 header = """
 # Worklog
