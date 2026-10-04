@@ -27,6 +27,11 @@ yet done for either; this page maps the work.
 | the formats' `le32` / `u16::from_le_bytes(b[at..])` helpers | `rrt::kit::Reader` |
 | `/ 4096.0` on 20.12 positions and 4.12 matrices | `rrt::kit::Q12` where the arithmetic must match the GTE's truncation |
 | 15-bit VRAM colour to RGBA (`tim.rs`, shaders' `* 8`) | `rrt::kit::Rgb555` (`rgb8_shifted` is the GPU's `<< 3`) |
+| `hwtr-cpu` (R3000A, GTE, `Machine` with hooks, BIOS tables, heap, checks) | `rrt::emu::psx` (`R3000`, `Gte`, `bios`, `machine()`) on `rrt::emu::Machine` |
+| `piney-eemu` (EE, its float rules, HLE C library) | `rrt::emu::ee` and `rrt::emu::hle::libc` |
+| hwtr `vab.rs` `decode_adpcm`, piney `sound/adpcm.rs`, piney-audio's `GAUSS` | `rrt::emu::spu` |
+| piney-game `padlog.rs`, hwtr `--press` | `rrt::input::PadLog`, `rrt::input::Script` |
+| piney-game `console.rs` | `rrt::app::Console` |
 | `hwtr-disc` | `rrt::disc::Image` (`Disc::open` becomes `Image::open`, `find_cue` `Image::find`) |
 
 ## What stays in the game

@@ -7,7 +7,8 @@
 //! triggers. [`Input::rumble`] drives the pad's motors as a DualShock takes
 //! them ([`Motors`]). Everything but the reading of gilrs is [`compose`], a
 //! pure function of the keyboard and a [`GamepadState`]; a [`Script`] holds
-//! buttons on given frames, for headless runs and replays.
+//! buttons on given frames, and a [`PadLog`] records every frame's pad and
+//! console commands, for headless runs and replays.
 //!
 //! What a game does with the pad - edge detection with its own repeat delay,
 //! dead zones, the stick pressing the D-pad - is the game's and stays in the
@@ -18,12 +19,14 @@
 pub mod buttons;
 pub mod gamepad;
 pub mod keyboard;
+pub mod padlog;
 pub mod script;
 pub mod stick;
 
 pub use buttons::Buttons;
 pub use gamepad::{GamepadState, Input, Motors, StickShape, compose};
 pub use keyboard::{KeyMap, Keyboard, Side};
+pub use padlog::PadLog;
 pub use script::{Press, Script};
 pub use stick::{Stick, axis_byte, square_stick};
 

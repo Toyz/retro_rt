@@ -3,14 +3,16 @@
 //! `#[rrt::main(name = value, ...)]` calls.
 
 use rrt_gpu::{Aspect, Filter};
-use rrt_input::{KeyMap, Script};
+use std::path::PathBuf;
+
+use rrt_input::{KeyMap, PadLog, Script};
 use winit::keyboard::KeyCode;
 
 use crate::clock::rate;
 
 /// The loop's settings. `Config::default()` is a 960 x 720 window ticking
 /// at NTSC's 59.94 Hz, vsync on, Escape quits, F11 toggles fullscreen, 4:3
-/// sharp bilinear, no script.
+/// sharp bilinear, no script, no replay, no recording.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Config {
     /// The window's title until the game sets one.
@@ -50,6 +52,15 @@ pub struct Config {
     /// [`crate::run`] and the whole pad in [`crate::headless`]: replays,
     /// attract modes, scripted tests.
     pub script: Option<Script>,
+    /// A recorded session to play back: on each frame the log has a pad
+    /// for, that pad replaces the live one entirely, and the commands it ran
+    /// arrive in [`crate::Tick::commands`]. Frames past its end take the
+    /// live pad again.
+    pub replay: Option<PadLog>,
+    /// Where to write a [`PadLog`] of the session (every tick's pad, and the
+    /// commands replayed or logged with [`crate::Tick::log_command`]) when
+    /// the loop ends.
+    pub record: Option<PathBuf>,
 }
 
 impl Default for Config {
@@ -71,6 +82,8 @@ impl Default for Config {
             fullscreen: false,
             fullscreen_key: Some(KeyCode::F11),
             script: None,
+            replay: None,
+            record: None,
         }
     }
 }
@@ -169,6 +182,18 @@ impl Config {
     /// Sets [`Config::script`].
     pub fn script(mut self, script: Script) -> Config {
         self.script = Some(script);
+        self
+    }
+
+    /// Sets [`Config::replay`].
+    pub fn replay(mut self, log: PadLog) -> Config {
+        self.replay = Some(log);
+        self
+    }
+
+    /// Sets [`Config::record`].
+    pub fn record(mut self, path: impl Into<PathBuf>) -> Config {
+        self.record = Some(path.into());
         self
     }
 

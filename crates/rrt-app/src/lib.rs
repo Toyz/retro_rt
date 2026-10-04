@@ -10,14 +10,22 @@
 //! tests. [`launch`] is what `#[rrt::main]` expands to: logging, the game,
 //! then [`run`].
 //!
+//! [`Console`] is a drop-down debug console a game wires into `event`, `tick`
+//! and `draw`. [`Config::replay`] drives the pad from a recorded
+//! [`rrt_input::PadLog`] and [`Config::record`] writes one.
+//!
 //! The loop owns no game state: what the game is, how it reads the pad, what
 //! a tick does, is the game's. See `docs/crates/rrt-app.md`.
 
+pub mod args;
 pub mod clock;
 pub mod config;
+pub mod console;
 
+pub use args::{AppArgs, WithArgs};
 pub use clock::{Clock, rate};
 pub use config::Config;
+pub use console::{Console, ConsoleKey};
 pub use rrt_gpu::{Gpu, Picture, Presenter, Target};
 pub use rrt_input::{Buttons, Input, Motors, Pad};
 pub use tracing;
@@ -95,6 +103,10 @@ pub struct Tick {
     /// What the gamepad's describe line read this tick: empty unless
     /// [`Config::pad_log`] is on.
     pub pad_line: String,
+    /// Console commands a replayed [`rrt_input::PadLog`] ran on this frame,
+    /// for the game to run as though typed (`console.run(line)`).
+    pub commands: Vec<String>,
+    logged: Vec<String>,
     exit: bool,
     title: Option<String>,
     motors: Option<Motors>,
@@ -102,7 +114,18 @@ pub struct Tick {
 
 impl Tick {
     fn new(pad: Pad, previous: Pad, frame: u64, dt: Duration) -> Tick {
-        Tick { pad, previous, frame, dt, pad_line: String::new(), exit: false, title: None, motors: None }
+        Tick {
+            pad,
+            previous,
+            frame,
+            dt,
+            pad_line: String::new(),
+            commands: Vec::new(),
+            logged: Vec::new(),
+            exit: false,
+            title: None,
+            motors: None,
+        }
     }
 
     /// Game time at the start of this tick: `dt * frame`.
@@ -113,6 +136,12 @@ impl Tick {
     /// The buttons pressed this frame.
     pub fn pressed(&self) -> Buttons {
         self.pad.pressed(&self.previous)
+    }
+
+    /// Records a console command the game ran this frame into the pad log
+    /// [`Config::record`] writes, so a replay runs it again.
+    pub fn log_command(&mut self, line: impl Into<String>) {
+        self.logged.push(line.into());
     }
 
     /// Ends the loop after this tick.
@@ -232,26 +261,34 @@ impl From<rrt_gpu::Error> for Error {
     }
 }
 
-/// What a game's constructor may return: the game, or a `Result` whose
-/// error the loop logs before exiting with status 1.
+/// What a game's constructor may return: the game, the game [`WithArgs`]
+/// (the standard flags it parsed), or a `Result` of either whose error the
+/// loop logs before exiting with status 1.
 pub trait IntoGame {
     /// The game.
     type Game: Game;
-    /// The game, or why there is none.
-    fn into_game(self) -> Result<Self::Game, String>;
+    /// The game and its standard flags, or why there is none.
+    fn into_game(self) -> Result<(Self::Game, Option<AppArgs>), String>;
 }
 
 impl<G: Game> IntoGame for G {
     type Game = G;
-    fn into_game(self) -> Result<G, String> {
-        Ok(self)
+    fn into_game(self) -> Result<(G, Option<AppArgs>), String> {
+        Ok((self, None))
     }
 }
 
-impl<G: Game, E: fmt::Display> IntoGame for Result<G, E> {
+impl<G: Game> IntoGame for WithArgs<G> {
     type Game = G;
-    fn into_game(self) -> Result<G, String> {
-        self.map_err(|e| e.to_string())
+    fn into_game(self) -> Result<(G, Option<AppArgs>), String> {
+        Ok((self.0, Some(self.1)))
+    }
+}
+
+impl<T: IntoGame, E: fmt::Display> IntoGame for Result<T, E> {
+    type Game = T::Game;
+    fn into_game(self) -> Result<(T::Game, Option<AppArgs>), String> {
+        self.map_err(|e| e.to_string())?.into_game()
     }
 }
 
@@ -263,16 +300,51 @@ pub fn init_logging(filter: &str) {
     let _ = tracing_subscriber::fmt().with_env_filter(filter).try_init();
 }
 
-/// A whole program: logging at [`Config::log`], the game from `make`, then
-/// [`run`]. A failure is logged and the process exits with status 1. This
-/// is what `#[rrt::main]` expands to.
+/// A whole program: logging at [`Config::log`], the game from `make`, its
+/// standard flags ([`AppArgs`]) applied, then [`run`] - or, with `--shot`,
+/// [`headless_shots`] writing the PNGs and exiting. A failure is logged and
+/// the process exits with status 1. This is what `#[rrt::main]` expands to.
 pub fn launch<R: IntoGame>(config: Config, make: impl FnOnce() -> R) {
     init_logging(&config.log);
-    let result = make().into_game().and_then(|game| run(config, game).map_err(|e| e.0));
+    let result = make().into_game().and_then(|(game, args)| {
+        let Some(args) = args else { return run(config, game).map_err(|e| e.0) };
+        let config = args.apply(config)?;
+        match &args.shot {
+            None => run(config, game).map_err(|e| e.0),
+            Some(path) => shoot(game, &config, &args, path),
+        }
+    });
     if let Err(e) = result {
         tracing::error!("{e}");
         std::process::exit(1);
     }
+}
+
+/// `--shot`: the frames [`AppArgs`] asks for, as PNGs.
+fn shoot<G: Game>(mut game: G, config: &Config, args: &AppArgs, path: &std::path::Path) -> Result<(), String> {
+    let size = args.size.unwrap_or(rrt_kit::cli::Size(config.width, config.height));
+    let mut written = Vec::new();
+    let mut failed = None;
+    let last = headless_shots(&mut game, config, args.frames, size.0, size.1, args.every, |frame, picture| {
+        let out = path.with_file_name(format!(
+            "{}-{frame}.{}",
+            path.file_stem().map_or("shot".into(), |s| s.to_string_lossy()),
+            path.extension().map_or("png".into(), |e| e.to_string_lossy())
+        ));
+        if let Err(e) = std::fs::write(&out, picture.to_png()) {
+            failed.get_or_insert(format!("{}: {e}", out.display()));
+        }
+        written.push(out);
+    })
+    .map_err(|e| e.0)?;
+    if let Some(e) = failed {
+        return Err(e);
+    }
+    std::fs::write(path, last.to_png()).map_err(|e| format!("{}: {e}", path.display()))?;
+    for p in written.iter().chain(std::iter::once(&path.to_path_buf())) {
+        tracing::info!("-> {}", p.display());
+    }
+    Ok(())
 }
 
 /// Runs `game` in a window until it closes: the pad read, [`Game::tick`] at
@@ -297,39 +369,103 @@ pub fn run<G: Game>(config: Config, game: G) -> Result<(), Error> {
         presented: Instant::now(),
         error: None,
         exiting: false,
+        recording: None,
     };
+    app.recording = app.config.record.as_ref().map(|_| rrt_input::PadLog::new());
     event_loop.run_app(&mut app).map_err(|e| Error(e.to_string()))?;
     app.error.map_or(Ok(()), Err)
 }
 
 /// Runs `game` with no window: [`Game::init`], `ticks` ticks with the pad
-/// driven by [`Config::script`] (at rest without one), one [`Game::draw`] into
+/// driven by [`Config::replay`] and [`Config::script`] (at rest without
+/// either; recorded to [`Config::record`] when set), one [`Game::draw`] into
 /// a `width` x `height` [`Target`], and that frame read back. For `--shot`,
 /// golden-image tests and CI.
 pub fn headless<G: Game>(game: &mut G, config: &Config, ticks: u64, width: u32, height: u32) -> Result<Picture, Error> {
+    headless_shots(game, config, ticks, width, height, None, |_, _| {})
+}
+
+/// [`headless`], also drawing a frame every `every` ticks (after ticks
+/// `every`, `2 * every`, ... below `ticks`) and handing each to `each` with
+/// the number of ticks run. Returns the final frame, after all `ticks`.
+pub fn headless_shots<G: Game>(
+    game: &mut G,
+    config: &Config,
+    ticks: u64,
+    width: u32,
+    height: u32,
+    every: Option<u64>,
+    mut each: impl FnMut(u64, &Picture),
+) -> Result<Picture, Error> {
     let gpu = Gpu::headless()?;
     let format = Target::FORMAT;
     game.init(&mut Init { gpu: &gpu, format, plain_format: format, window: None });
-    let dt = Duration::from_secs_f64(1.0 / config.hz);
-    let mut previous = Pad::default();
-    for frame in 0..ticks {
-        let buttons = config.script.as_ref().map_or(Buttons::NONE, |s| s.buttons_at(frame));
-        let pad = Pad { buttons, ..Pad::default() };
-        let mut t = Tick::new(pad, previous, frame, dt);
-        previous = pad;
-        game.tick(&mut t);
-        if t.exit {
-            break;
-        }
-    }
     let target = Target::new(&gpu.device, width, height);
     let mut presenter = Presenter::new(&gpu.device, format);
     presenter.aspect = config.aspect;
     presenter.filter = config.filter;
-    let mut draw = Draw::new(&gpu, &mut presenter, &target.view, &target.view, (target.width, target.height));
+    let dt = Duration::from_secs_f64(1.0 / config.hz);
+    let mut previous = Pad::default();
+    let mut recording = config.record.as_ref().map(|_| rrt_input::PadLog::new());
+    for frame in 0..ticks {
+        let (pad, commands) = frame_input(config, frame, Pad::default());
+        let mut t = Tick::new(pad, previous, frame, dt);
+        t.commands = commands;
+        previous = pad;
+        game.tick(&mut t);
+        note(&mut recording, &t);
+        if t.exit {
+            break;
+        }
+        let ran = frame + 1;
+        if every.is_some_and(|n| n > 0 && ran % n == 0 && ran < ticks) {
+            let picture = frame_now(game, &gpu, &mut presenter, &target);
+            each(ran, &picture);
+        }
+    }
+    save_recording(config, &recording);
+    Ok(frame_now(game, &gpu, &mut presenter, &target))
+}
+
+/// One [`Game::draw`] into `target`, read back.
+fn frame_now<G: Game>(game: &mut G, gpu: &Gpu, presenter: &mut Presenter, target: &Target) -> Picture {
+    let mut draw = Draw::new(gpu, presenter, &target.view, &target.view, (target.width, target.height));
     game.draw(&mut draw);
     gpu.queue.submit(draw.finish());
-    Ok(target.read_back(&gpu))
+    target.read_back(gpu)
+}
+
+/// The pad and commands a tick gets on `frame`: the replayed pad when the
+/// log has one (replacing `live` entirely), the script's presses added.
+fn frame_input(config: &Config, frame: u64, live: Pad) -> (Pad, Vec<String>) {
+    let (mut pad, commands) = match &config.replay {
+        Some(log) => (log.pad(frame).unwrap_or(live), log.commands(frame).to_vec()),
+        None => (live, Vec::new()),
+    };
+    if let Some(script) = &config.script {
+        pad.buttons |= script.buttons_at(frame);
+    }
+    (pad, commands)
+}
+
+/// Adds a tick's pad and commands to the recording, when there is one.
+fn note(recording: &mut Option<rrt_input::PadLog>, t: &Tick) {
+    if let Some(log) = recording {
+        log.record(t.frame, t.pad);
+        for c in t.commands.iter().chain(&t.logged) {
+            log.record_command(t.frame, c.clone());
+        }
+    }
+}
+
+/// Writes the recording to [`Config::record`], when both exist.
+fn save_recording(config: &Config, recording: &Option<rrt_input::PadLog>) {
+    if let (Some(path), Some(log)) = (&config.record, recording) {
+        match std::fs::write(path, log.to_text()) {
+            Ok(()) => tracing::info!("pad log: {} frames -> {}", log.len(), path.display()),
+            Err(e) => tracing::warn!("pad log {}: {e}", path.display()),
+        }
+    }
 }
 
 /// The window and everything drawn to it, once open.
@@ -353,6 +489,7 @@ struct App<G: Game> {
     presented: Instant,
     error: Option<Error>,
     exiting: bool,
+    recording: Option<rrt_input::PadLog>,
 }
 
 impl<G: Game> App<G> {
@@ -388,13 +525,13 @@ impl<G: Game> App<G> {
         let steps = self.clock.due(Instant::now());
         for _ in 0..steps {
             let line = if self.config.pad_log { self.input.describe() } else { String::new() };
-            let mut pad = self.input.read();
-            if let Some(script) = &self.config.script {
-                pad.buttons |= script.buttons_at(self.frame);
-            }
+            let live = self.input.read();
+            let (pad, commands) = frame_input(&self.config, self.frame, live);
             let mut t = Tick::new(pad, self.pad, self.frame, self.clock.period());
             t.pad_line = line;
+            t.commands = commands;
             self.game.tick(&mut t);
+            note(&mut self.recording, &t);
             self.pad = pad;
             self.frame += 1;
             if let Some(m) = t.motors {
@@ -499,6 +636,8 @@ impl<G: Game> ApplicationHandler for App<G> {
         }
         if self.exiting {
             self.game.exit();
+            save_recording(&self.config, &self.recording);
+            self.recording = None;
             event_loop.exit();
         }
     }

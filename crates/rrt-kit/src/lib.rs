@@ -8,22 +8,32 @@
 //!   when their slot is reused (objects, entities, sounds); [`Ring`], a
 //!   fixed-capacity history that overwrites its oldest (frame times, input
 //!   logs, rewind).
+//! - Decompression as the era did it: [`compress`]'s configurable LZSS
+//!   (Okumura's, Nintendo's LZ10) and run-length codings (PackBits,
+//!   Nintendo RL), with encoders.
 //! - Randomness a port can reproduce: [`rng`]'s [`Generator`] trait, the
 //!   era's generators (C and MSVC `rand`, newlib, xorshift, LFSRs, tables),
 //!   the reductions games applied ([`RngExt`]), and wrappers that count,
 //!   record or force values.
+//! - Integer trigonometry: [`Angle`] in units of a turn ([`Angle4096`],
+//!   [`Bam`]), table sine and cosine as [`Q12`], [`atan2`], exact [`isqrt`].
 //! - Data as the consoles hold it: [`Fixed`] fixed-point numbers ([`Q12`],
 //!   the PS1 GTE's 4.12 and 20.12), [`Reader`] for little- and big-endian file
 //!   formats, [`bcd`], and the era's colour formats behind one [`Pixel`]
 //!   trait ([`color`]: RGB555 to RGB5A3, Mega Drive CRAM to PSMCT32, YCbCr,
 //!   palettes).
 //!
+//! - Command lines: [`cli`], the parser behind `#[derive(rrt::Args)]`.
+//!
 //! No dependencies, no I/O, nothing console-specific beyond these shared
 //! encodings. See `docs/crates/rrt-kit.md`.
 
+pub mod angle;
 pub mod bcd;
 pub mod bytes;
+pub mod cli;
 pub mod color;
+pub mod compress;
 pub mod fixed;
 pub mod pool;
 pub mod ring;
@@ -31,6 +41,7 @@ pub mod rng;
 pub mod slab;
 pub mod staging;
 
+pub use angle::{Angle, Angle4096, Bam, atan2, hypot, isqrt, sqrt_q12};
 pub use bytes::{Eof, Reader};
 pub use color::{
     Abgr4444, Argb1555, Argb4444, Bgr565, Ia8, Ia16, Md333, Nibbles, Pixel, PsmCt32, Range, Rgb5a3, Rgb332, Rgb555,

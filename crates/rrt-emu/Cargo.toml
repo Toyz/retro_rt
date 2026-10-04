@@ -1,0 +1,12 @@
+[package]
+name = "rrt-emu"
+version = "0.1.0"
+description = "The originals, run for comparison: CPUs behind one trait (the PS1's R3000A with its GTE, the PS2's EE), memory maps, HLE hooks for library and BIOS calls, and an oracle that calls an original function and reports what it returned and wrote, for checking a port against it. Also the consoles' hardware data formats several games share (SPU ADPCM)."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

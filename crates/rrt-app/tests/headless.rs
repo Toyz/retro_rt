@@ -144,3 +144,45 @@ fn a_script_drives_the_headless_pad() {
     }
     assert_eq!(game.0, [(2, Buttons::CROSS, Buttons::CROSS), (3, Buttons::CROSS | Buttons::START, Buttons::START)]);
 }
+
+/// A session recorded with `Config::record` replays with `Config::replay`:
+/// the same pads on the same frames, and the commands back in
+/// `Tick::commands`.
+#[test]
+fn a_recorded_session_replays_frame_for_frame() {
+    use rrt_input::{Buttons, PadLog, Script};
+
+    #[derive(Default)]
+    struct Seen(Vec<(u64, Buttons, Vec<String>)>);
+    impl Game for Seen {
+        fn tick(&mut self, t: &mut Tick) {
+            if t.frame == 2 {
+                t.log_command("spawn crate");
+            }
+            self.0.push((t.frame, t.pad.buttons, t.commands.clone()));
+        }
+        fn draw(&mut self, _: &mut Draw<'_>) {}
+    }
+
+    let path = std::env::temp_dir().join(format!("rrt-padlog-{}.txt", std::process::id()));
+    let record = Config::default().script(Script::parse("1:x:2,3:start").unwrap()).record(&path);
+    if headless(&mut Seen::default(), &record, 5, 4, 4).is_err() {
+        eprintln!("no GPU adapter, skipping");
+        return;
+    }
+    let text = std::fs::read_to_string(&path).unwrap();
+    assert!(text.contains("1 4000 80 80 80 80 00 00 0\n"), "{text}");
+    assert!(text.contains("2 > spawn crate\n"), "{text}");
+    let log = PadLog::parse(&text).unwrap();
+    assert_eq!(log.len(), 5);
+
+    let mut played = Seen::default();
+    headless(&mut played, &Config::default().replay(log), 5, 4, 4).unwrap();
+    let pressed: Vec<(u64, Buttons)> = played.0.iter().map(|(f, b, _)| (*f, *b)).collect();
+    assert_eq!(
+        pressed,
+        [(0, Buttons::NONE), (1, Buttons::CROSS), (2, Buttons::CROSS), (3, Buttons::START), (4, Buttons::NONE)]
+    );
+    assert_eq!(played.0[2].2, ["spawn crate"], "the logged command comes back on its frame");
+    let _ = std::fs::remove_file(&path);
+}

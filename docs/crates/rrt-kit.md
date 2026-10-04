@@ -2,7 +2,7 @@
 title: rrt-kit, the small things every port rewrites
 status: solid
 crates: rrt-kit
-covers: rrt_kit::Generator, rrt_kit::Generator::next, rrt_kit::Generator::bits, rrt_kit::Generator::state, rrt_kit::Generator::set_state, rrt_kit::RngExt, rrt_kit::RngExt::modulo, rrt_kit::RngExt::scaled, rrt_kit::RngExt::top_bits, rrt_kit::RngExt::below, rrt_kit::RngExt::range, rrt_kit::RngExt::chance, rrt_kit::RngExt::pick, rrt_kit::RngExt::shuffle, rrt_kit::RngExt::unit_f32, rrt_kit::RngExt::skip, rrt_kit::rng::Lcg, rrt_kit::rng::Lcg::jump, rrt_kit::rng::Lcg64, rrt_kit::rng::Xorshift32, rrt_kit::rng::Lfsr, rrt_kit::rng::Lfsr::next_bit, rrt_kit::rng::TableRng, rrt_kit::rng::Pcg32, rrt_kit::rng::Counted, rrt_kit::rng::Recorded, rrt_kit::rng::Forced, rrt_kit::rng::Forced::force, rrt_kit::Staging, rrt_kit::Staging::pack, rrt_kit::Staging::begin, rrt_kit::Staging::bytes, rrt_kit::Pack, rrt_kit::Pool, rrt_kit::Pool::take, rrt_kit::Pool::give, rrt_kit::Pool::with_max_spare, rrt_kit::Pool::with_max_capacity, rrt_kit::Pool::trim, rrt_kit::SyncPool, rrt_kit::SyncPool::take, rrt_kit::SyncPool::take_vec, rrt_kit::SyncPool::give, rrt_kit::SyncPool::set_max_spare, rrt_kit::SyncPool::set_max_capacity, rrt_kit::SyncPool::trim, rrt_kit::Pooled, rrt_kit::Pooled::into_inner, rrt_kit::Slab, rrt_kit::Slab::insert, rrt_kit::Slab::get, rrt_kit::Slab::get_mut, rrt_kit::Slab::remove, rrt_kit::Slab::retain, rrt_kit::Handle, rrt_kit::Ring, rrt_kit::Ring::push, rrt_kit::Ring::iter, rrt_kit::Fixed, rrt_kit::Q12, rrt_kit::Fixed::from_raw, rrt_kit::Fixed::from_f32, rrt_kit::Fixed::to_f32, rrt_kit::Fixed::floor, rrt_kit::Reader, rrt_kit::Eof, rrt_kit::Pixel, rrt_kit::color::expand, rrt_kit::color::reduce, rrt_kit::color::to_rgba8, rrt_kit::Rgb555, rrt_kit::Rgb555::rgb8, rrt_kit::Rgb555::rgb8_shifted, rrt_kit::Rgb555::rgba8, rrt_kit::Argb1555, rrt_kit::Rgb565, rrt_kit::Bgr565, rrt_kit::Argb4444, rrt_kit::Abgr4444, rrt_kit::Rgba5551, rrt_kit::Rgb5a3, rrt_kit::Ia16, rrt_kit::Ia8, rrt_kit::Md333, rrt_kit::Sms222, rrt_kit::Rgb332, rrt_kit::PsmCt32, rrt_kit::color::ycbcr_to_rgb, rrt_kit::Range, rrt_kit::color::indexed4, rrt_kit::color::indexed8, rrt_kit::Nibbles, rrt_kit::color::ps2_clut_index, rrt_kit::bcd::decode, rrt_kit::bcd::encode, rrt_kit::bcd::msf_to_lba, rrt_kit::bcd::lba_to_msf
+covers: rrt_kit::cli::Args, rrt_kit::cli::Args::parse_env, rrt_kit::cli::Args::parse_from, rrt_kit::cli::parse, rrt_kit::cli::usage, rrt_kit::cli::Spec, rrt_kit::cli::Kind, rrt_kit::cli::Matches, rrt_kit::cli::FromArg, rrt_kit::cli::Size, rrt_kit::cli::Error, rrt_kit::compress::Lzss, rrt_kit::compress::Lzss::decode, rrt_kit::compress::Lzss::encode, rrt_kit::compress::FlagOrder, rrt_kit::compress::Token, rrt_kit::compress::lz10_decode, rrt_kit::compress::lz10_encode, rrt_kit::compress::packbits_decode, rrt_kit::compress::packbits_encode, rrt_kit::compress::rl_decode, rrt_kit::compress::rl_encode, rrt_kit::compress::Error, rrt_kit::Angle, rrt_kit::Angle4096, rrt_kit::Bam, rrt_kit::Angle::sin, rrt_kit::Angle::cos, rrt_kit::Angle::rotate, rrt_kit::Angle::convert, rrt_kit::atan2, rrt_kit::isqrt, rrt_kit::sqrt_q12, rrt_kit::hypot, rrt_kit::Generator, rrt_kit::Generator::next, rrt_kit::Generator::bits, rrt_kit::Generator::state, rrt_kit::Generator::set_state, rrt_kit::RngExt, rrt_kit::RngExt::modulo, rrt_kit::RngExt::scaled, rrt_kit::RngExt::top_bits, rrt_kit::RngExt::below, rrt_kit::RngExt::range, rrt_kit::RngExt::chance, rrt_kit::RngExt::pick, rrt_kit::RngExt::shuffle, rrt_kit::RngExt::unit_f32, rrt_kit::RngExt::skip, rrt_kit::rng::Lcg, rrt_kit::rng::Lcg::jump, rrt_kit::rng::Lcg64, rrt_kit::rng::Xorshift32, rrt_kit::rng::Lfsr, rrt_kit::rng::Lfsr::next_bit, rrt_kit::rng::TableRng, rrt_kit::rng::Pcg32, rrt_kit::rng::Counted, rrt_kit::rng::Recorded, rrt_kit::rng::Forced, rrt_kit::rng::Forced::force, rrt_kit::Staging, rrt_kit::Staging::pack, rrt_kit::Staging::begin, rrt_kit::Staging::bytes, rrt_kit::Pack, rrt_kit::Pool, rrt_kit::Pool::take, rrt_kit::Pool::give, rrt_kit::Pool::with_max_spare, rrt_kit::Pool::with_max_capacity, rrt_kit::Pool::trim, rrt_kit::SyncPool, rrt_kit::SyncPool::take, rrt_kit::SyncPool::take_vec, rrt_kit::SyncPool::give, rrt_kit::SyncPool::set_max_spare, rrt_kit::SyncPool::set_max_capacity, rrt_kit::SyncPool::trim, rrt_kit::Pooled, rrt_kit::Pooled::into_inner, rrt_kit::Slab, rrt_kit::Slab::insert, rrt_kit::Slab::get, rrt_kit::Slab::get_mut, rrt_kit::Slab::remove, rrt_kit::Slab::retain, rrt_kit::Handle, rrt_kit::Ring, rrt_kit::Ring::push, rrt_kit::Ring::iter, rrt_kit::Fixed, rrt_kit::Q12, rrt_kit::Fixed::from_raw, rrt_kit::Fixed::from_f32, rrt_kit::Fixed::to_f32, rrt_kit::Fixed::floor, rrt_kit::Reader, rrt_kit::Eof, rrt_kit::Pixel, rrt_kit::color::expand, rrt_kit::color::reduce, rrt_kit::color::to_rgba8, rrt_kit::Rgb555, rrt_kit::Rgb555::rgb8, rrt_kit::Rgb555::rgb8_shifted, rrt_kit::Rgb555::rgba8, rrt_kit::Argb1555, rrt_kit::Rgb565, rrt_kit::Bgr565, rrt_kit::Argb4444, rrt_kit::Abgr4444, rrt_kit::Rgba5551, rrt_kit::Rgb5a3, rrt_kit::Ia16, rrt_kit::Ia8, rrt_kit::Md333, rrt_kit::Sms222, rrt_kit::Rgb332, rrt_kit::PsmCt32, rrt_kit::color::ycbcr_to_rgb, rrt_kit::Range, rrt_kit::color::indexed4, rrt_kit::color::indexed8, rrt_kit::Nibbles, rrt_kit::color::ps2_clut_index, rrt_kit::bcd::decode, rrt_kit::bcd::encode, rrt_kit::bcd::msf_to_lba, rrt_kit::bcd::lba_to_msf
 ---
 
 # rrt-kit
@@ -56,6 +56,72 @@ entities, sounds - anything referred to by id after it may have gone.
 value it pushed out once full; `get(i)` (0 the oldest), `oldest`, `newest`,
 and `iter` (double-ended, allocation-free). For frame-time graphs, input
 history, rewind buffers.
+
+## Command lines
+
+`cli` is the parser behind `#[derive(rrt::Args)]` (see
+[rrt-macros](rrt-macros.md)); a tool without the derive uses it directly.
+A program's arguments are `Spec`s (name, aliases, short letter, `Kind` -
+`Flag`, `Value`, `Repeated`, `Positional`, `Rest` - value name, help,
+required, default); `parse(specs, args)` matches a command line into
+`Matches`, whose `flag`, `value`, `value_or`, `required`, `values`,
+`positional`, `positional_or`, `positional_required` and `rest` convert
+through `FromArg` (strings, paths, every integer and float, `bool` as
+true/yes/on/1, `char`, and `Size` as `WIDTHxHEIGHT`).
+
+Accepted: `--name value`, `--name=value`, `-x value`, `-x` flags, `--` to end
+the options, positionals in order. A single option or flag given twice is
+an error; an unknown option names the closest known one ("did you mean
+--shot?"). `--help`/`-h` and `--version` come back as `Error::Help` and
+`Error::Version`. `usage(program, about, specs)` renders the help: the about,
+a usage line, then each argument with its help, `(repeatable)`, `[default:
+..]` and `[required]`.
+
+The `Args` trait (`about`, `specs`, `build`) gives `parse_from(args)`,
+`usage(program)` and `parse_env(version)`, which parses the process's
+arguments, prints the usage and exits 0 for `--help`, prints the version for
+`--version`, and prints the mistake with the usage and exits 2.
+
+## Compression
+
+`compress::Lzss` is a ring-buffer LZ77 with flag bytes, every knob a field:
+`window`, `fill` (the ring's initial bytes), `start` (where writing begins),
+`min_match`/`max_match`, `flags` (`FlagOrder::Lsb` or `Msb` first),
+`literal_bit` (which bit value means a literal), and `token` (how a
+reference's two bytes pack). Two layouts are built in:
+
+| preset | what | fields |
+| --- | --- | --- |
+| `Lzss::OKUMURA` | Okumura's `LZSS.C` (1989), copied by a great many games | 4096 ring of spaces from 4078; lengths 3-18; LSB-first flags, 1 = literal; `Token::Okumura`: 12-bit absolute ring position, 4-bit length |
+| `Lzss::LZ10` | Nintendo LZ10 body (GBA/DS BIOS 0x10) | ring of zeros from 0; lengths 3-18; MSB-first flags, 0 = literal; `Token::Nintendo`: 4-bit length, 12-bit distance - 1 |
+
+A game that kept Okumura's layout but changed the fill or start is
+`Lzss { fill: 0, start: 0, ..Lzss::OKUMURA }`. `decode(data, size)` runs to
+the data's end or to `size` bytes; `encode(data)` produces what `decode`
+inverts (greedy longest matches through a hash of 3-byte prefixes, never
+into the initial fill). `lz10_decode`/`lz10_encode` add LZ10's 4-byte header.
+
+Run-length: `packbits_decode`/`packbits_encode` (Apple's PackBits: 0-127
+literal runs, 129-255 repeats, 128 skipped) and `rl_decode`/`rl_encode`
+(Nintendo RL, BIOS 0x30, with its header). Every decoder returns a
+`compress::Error { at, what }` on corrupt or truncated data rather than
+panicking.
+
+## Angles and integer trigonometry
+
+`Angle<TURN>` holds an angle as `TURN` units a turn (a power of two),
+wrapping on `+`, `-` and negation: `Angle4096` is the PS1 GTE's unit, `Bam`
+the 65536-a-turn binary angle. `sin`/`cos` return `Q12` from a quarter-wave
+table of 1025 entries at 4096 a turn (within half a unit of the true value
+everywhere); `rotate(x, y)` turns a vector, each product `>> 12` as the
+GTE's rotation does; `convert::<OTHER>()`, `from_degrees`, `degrees`,
+`radians`, `signed`. `atan2(y, x)` gives an `Angle4096` within one unit of
+the true angle (exact on the axes); `isqrt` is the exact integer square
+root of any `u64`; `sqrt_q12` and `hypot` build on it.
+
+The tables were generated once from `f64` and are embedded, so every
+platform agrees. They are not libgte's: a port that must match a game's
+trig to the bit ports the game's own table.
 
 ## Randomness a port can reproduce
 
@@ -194,7 +260,17 @@ addresses: `msf_to_lba` (the 150-sector lead-in taken off; None inside it) and
 `every_byte_of_every_8_bit_format_round_trips`, `red_lands_where_each_format_keeps_it`,
 `alpha_rules`, `rgb555_channels_top_bit_and_both_expansions`, `ps2_alpha_is_0x80_for_one`, `ycbcr_greys_stay_grey_and_ranges_differ`,
 `indexed_images_look_up_their_palette`, `the_ps2_clut_swaps_index_bits_3_and_4`, `bcd_round_trips_and_refuses_non_digits`,
-`sector_16_is_read_at_00_02_16`, `ansi_c_rand_matches_its_published_sequence`,
+`sector_16_is_read_at_00_02_16`, `okumura_references_absolute_ring_positions_and_overlap`,
+`okumura_can_copy_the_initial_fill`, `lz10_decodes_its_header_and_overlapping_runs`,
+`corrupt_data_is_an_error_not_a_panic`, `encode_then_decode_gives_the_data_back`,
+`packbits_decodes_apples_published_example` (Apple TN1023's example),
+`rl_decodes_repeats_and_literals`, `corrupt_runs_are_errors`, `both_encoders_round_trip`,
+`the_quarter_points_are_exact`, `the_table_is_within_half_a_unit_of_the_true_sine_everywhere`,
+`angles_wrap_and_convert_between_turns`,
+`atan2_finds_the_axes_exactly_and_everything_within_one_unit`,
+`rotation_turns_a_vector_a_quarter`, `square_roots_are_exact`,
+`every_form_matches`, `mistakes_say_what_is_wrong`, `values_convert`,
+`the_usage_lists_every_argument`, `ansi_c_rand_matches_its_published_sequence`,
 `msvc_rand_matches_its_published_sequence`, `pcg32_matches_the_reference_demo`,
 `xorshift32_steps_as_marsaglia_wrote_it`, `a_maximal_16_bit_lfsr_has_period_65535`,
 `newlib_rand_is_its_64_bit_lcg_formula`, `a_table_reads_in_turn_and_wraps`,
@@ -210,7 +286,9 @@ addresses: `msf_to_lba` (the 150-sector lead-in taken off; None inside it) and
 A lock-free pool: `SyncPool`'s lock is held for one push or pop, which is
 expected to be far below an audio buffer's period (inferred, not measured;
 measure it before reaching for lock-free); any one game's generator (its constants and its reductions are the
-port's, built from this trait); cryptographic randomness; fixed palettes
+port's, built from this trait); cryptographic randomness; other compressors (Huffman, LZ77 variants with different token packing -
+a game's own `Token` belongs in its crate until a second game shares it);
+fixed palettes
 with no canonical values (the NES's
 differs by console revision and capture); compressed texture formats (S3TC,
 GameCube CMPR, PVRTC) and console texture swizzles other than the PS2 CLUT's,

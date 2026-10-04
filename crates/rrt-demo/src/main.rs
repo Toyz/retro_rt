@@ -3,13 +3,16 @@
 //!
 //! A pad tester: a 320 x 240 picture with a box per button, lit while held,
 //! and the two sticks as dots. Cross plays a tone, Circle runs the motors,
-//! Select quits.
+//! Select quits. F1 or backquote opens the console (`help`, `frame`,
+//! `rumble on|off`).
 //!
 //! ```text
-//! rrt-demo [--shot OUT.png]
+//! rrt-demo [--tone HZ] [the standard flags: --shot, --frames, --press, --replay, --record, ...]
 //! ```
 //!
-//! `--shot` draws one frame with no window and writes it as PNG.
+//! Its arguments are `#[derive(rrt::Args)]` with the standard
+//! `rrt::app::AppArgs` flattened in, so `--shot OUT.png` draws a frame with
+//! no window and writes it, and `--help` lists everything.
 
 use std::sync::{Arc, Mutex};
 
@@ -40,10 +43,11 @@ const BOXES: [(Buttons, u32, u32); 16] = [
     (Buttons::R3, 190, 180),
 ];
 
-/// A sine at 440 Hz while `on`.
+/// A sine at `hz` while `on`.
 struct Tone {
     on: bool,
     phase: f32,
+    hz: f32,
 }
 
 impl Source for Tone {
@@ -54,7 +58,7 @@ impl Source for Tone {
     fn render(&mut self, out: &mut [i16]) {
         for frame in out.as_chunks_mut::<2>().0 {
             let v = if self.on { (self.phase * std::f32::consts::TAU).sin() * 6000.0 } else { 0.0 };
-            self.phase = (self.phase + 440.0 / 48000.0).fract();
+            self.phase = (self.phase + self.hz / 48000.0).fract();
             frame.fill(v as i16);
         }
     }
@@ -62,6 +66,10 @@ impl Source for Tone {
 
 struct Demo {
     pad: Pad,
+    console: Console,
+    frame: u64,
+    /// The console's `rumble on` holds the motors on.
+    rumble: bool,
     picture: Picture,
     tone: Arc<Mutex<Tone>>,
     /// Kept so the sound plays; None with no device.
@@ -69,12 +77,24 @@ struct Demo {
 }
 
 impl Demo {
-    fn new(with_audio: bool) -> Demo {
-        let tone = Arc::new(Mutex::new(Tone { on: false, phase: 0.0 }));
+    fn new(with_audio: bool, hz: f32) -> Demo {
+        let tone = Arc::new(Mutex::new(Tone { on: false, phase: 0.0, hz }));
         let audio = with_audio
             .then(|| Output::open(tone.clone()))
             .and_then(|r| r.map_err(|e| rrt::tracing::warn!("no audio: {e}")).ok());
-        Demo { pad: Pad::default(), picture: Picture::filled(W, H, [0, 0, 0, 255]), tone, _audio: audio }
+        let mut console = Console::new();
+        console.describe("frame", "the tick count");
+        console.describe("rumble", "on or off: hold the motors");
+        console.say("rrt-demo console - type help");
+        Demo {
+            pad: Pad::default(),
+            console,
+            frame: 0,
+            rumble: false,
+            picture: Picture::filled(W, H, [0, 0, 0, 255]),
+            tone,
+            _audio: audio,
+        }
     }
 
     fn paint(&mut self) {
@@ -98,8 +118,43 @@ impl Demo {
     }
 }
 
+impl Demo {
+    /// Answers one console command.
+    fn command(&mut self, t: &mut Tick, line: &str) {
+        t.log_command(line);
+        let reply = match line.split_whitespace().collect::<Vec<_>>().as_slice() {
+            ["frame"] => format!("frame {}", t.frame),
+            ["rumble", "on"] => {
+                self.rumble = true;
+                "rumble on".into()
+            }
+            ["rumble", "off"] => {
+                self.rumble = false;
+                "rumble off".into()
+            }
+            _ => format!("unknown command: {line} (try help)"),
+        };
+        self.console.say(reply);
+    }
+}
+
 impl Game for Demo {
+    fn event(&mut self, event: &rrt::winit::event::WindowEvent) -> bool {
+        self.console.event(event)
+    }
+
     fn tick(&mut self, t: &mut Tick) {
+        self.frame = t.frame;
+        for line in std::mem::take(&mut t.commands) {
+            self.console.run(&line);
+        }
+        for line in self.console.take_commands() {
+            self.command(t, &line);
+        }
+        if self.console.open {
+            // The keyboard is the console's while it is open.
+            return;
+        }
         self.pad = t.pad;
         if t.pressed().contains(Buttons::SELECT) {
             t.exit();
@@ -107,7 +162,7 @@ impl Game for Demo {
         if let Ok(mut tone) = self.tone.lock() {
             tone.on = t.pad.held(Buttons::CROSS);
         }
-        let on = t.pad.held(Buttons::CIRCLE);
+        let on = t.pad.held(Buttons::CIRCLE) || self.rumble;
         t.rumble(Motors { small: on, large: if on { 0xc0 } else { 0 } });
         if t.pressed() != Buttons::NONE {
             t.set_title(format!("rrt-demo - {}", t.pad.buttons.names().collect::<Vec<_>>().join(" ")));
@@ -116,22 +171,25 @@ impl Game for Demo {
 
     fn draw(&mut self, d: &mut Draw<'_>) {
         self.paint();
-        d.present_picture(&self.picture, None);
+        let overlay = self.console.overlay(d.width, d.height);
+        d.present_picture(&self.picture, overlay.as_ref());
     }
 }
 
+/// The smallest whole game on retro_rt: a pad tester.
+#[derive(rrt::Args)]
+struct Cli {
+    /// The tone's pitch, in hertz.
+    #[arg(default = "440")]
+    tone: f32,
+    #[arg(flatten)]
+    app: AppArgs,
+}
+
 #[rrt::main(title = "rrt-demo", size = (960, 720))]
-fn main() -> Result<Demo, String> {
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    match args.as_slice() {
-        [] => Ok(Demo::new(true)),
-        [flag, out] if flag == "--shot" => {
-            let mut demo = Demo::new(false);
-            let picture = rrt::app::headless(&mut demo, &Config::default(), 1, 640, 480).map_err(|e| e.to_string())?;
-            std::fs::write(out, picture.to_png()).map_err(|e| format!("{out}: {e}"))?;
-            println!("-> {out}");
-            std::process::exit(0);
-        }
-        _ => Err("usage: rrt-demo [--shot OUT.png]".into()),
-    }
+fn main() -> WithArgs<Demo> {
+    let cli = Cli::parse_env(env!("CARGO_PKG_VERSION"));
+    // A headless shot plays no sound.
+    let demo = Demo::new(cli.app.shot.is_none(), cli.tone);
+    WithArgs(demo, cli.app)
 }

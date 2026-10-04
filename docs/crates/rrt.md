@@ -30,6 +30,7 @@ rrt = { path = "...", default-features = false, features = ["disc"] }
 | `rrt::net` | [rrt-net](rrt-net.md) | `net` | yes |
 | `rrt::image` | [rrt-image](rrt-image.md) | always | yes |
 | `rrt::kit` | [rrt-kit](rrt-kit.md) | always | yes |
+| `rrt::emu` | [rrt-emu](rrt-emu.md) | `emu` | no: a port's tests and tools want it, not its game |
 | `#[rrt::main]` | [rrt-macros](rrt-macros.md) | `app` | yes |
 
 ## Re-exports
@@ -39,8 +40,11 @@ rrt = { path = "...", default-features = false, features = ["disc"] }
 line: two wgpu versions in one build are two incompatible sets of types. See
 [dependencies](../conventions/dependencies.md).
 
+`rrt::cli` (the parser) and `#[derive(rrt::Args)]` are always there, so a
+tool with no window gets the same command line handling.
+
 `rrt::prelude` holds the names nearly every game file wants: `Config`, `Game`,
-`Init`, `Tick`, `Draw`, `Gpu`, `Picture`, `Target`, `Buttons`, `Motors`,
+`Init`, `Tick`, `Draw`, `Console`, `AppArgs`, `WithArgs`, `Args` (the trait, for `parse_env`), `Gpu`, `Picture`, `Target`, `Buttons`, `Motors`,
 `Pad`.
 
 ## Gaps

@@ -38,10 +38,21 @@ impl Game for MyGame {
     fn draw(&mut self, d: &mut Draw<'_>) { /* d.present_picture / present_target */ }
 }
 
+/// My game, ported.
+#[derive(rrt::Args)]
+struct Cli {
+    /// The disc image.
+    #[arg(positional, default = "work/disc/game.cue")]
+    disc: std::path::PathBuf,
+    #[arg(flatten)]
+    app: AppArgs,          // --shot, --press, --replay, --record, --fullscreen, ...
+}
+
 #[rrt::main(title = "mygame", hz = rrt::app::rate::NTSC)]
-fn main() -> Result<MyGame, String> {
-    // parse arguments, find the disc, load what the first screen needs
-    Ok(MyGame { /* ... */ })
+fn main() -> Result<WithArgs<MyGame>, String> {
+    let cli = Cli::parse_env(env!("CARGO_PKG_VERSION"));
+    // find the disc, load what the first screen needs
+    Ok(WithArgs(MyGame { /* ... */ }, cli.app))
 }
 ```
 
@@ -62,10 +73,11 @@ presenter letterboxes at 4:3 with sharp bilinear scaling; change
 
 ## 5. --shot
 
-`rrt::app::headless(&mut game, &config, ticks, w, h)` runs `init`, `ticks`
-ticks with the pad at rest, one `draw`, and returns the `Picture`;
-`picture.to_png()` writes it. This is the draw path the window uses, so a
-shot is a real frame.
+With `AppArgs` flattened in, `--shot out.png` is already there: `launch`
+runs the game headless for `--frames` ticks (driven by `--press` or
+`--replay`), draws, writes the PNG and exits. It is the draw path the window
+uses, so a shot is a real frame. `rrt::app::headless` does the same from
+code, for golden-image tests.
 
 ## 6. Docs
 

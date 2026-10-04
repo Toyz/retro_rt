@@ -1725,6 +1725,7 @@ dependencies = [
  "rrt-app",
  "rrt-audio",
  "rrt-disc",
+ "rrt-emu",
  "rrt-gpu",
  "rrt-image",
  "rrt-input",
@@ -1740,6 +1741,7 @@ dependencies = [
  "rrt-gpu",
  "rrt-image",
  "rrt-input",
+ "rrt-kit",
  "tracing",
  "tracing-subscriber",
  "winit",
@@ -1766,6 +1768,10 @@ version = "0.1.0"
 
 [[package]]
 name = "rrt-docs"
+version = "0.1.0"
+
+[[package]]
+name = "rrt-emu"
 version = "0.1.0"
 
 [[package]]

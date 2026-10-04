@@ -9,7 +9,7 @@ publish.workspace = true
 [features]
 default = ["app", "audio", "disc", "net"]
 # The loop, the window, the pad, the GPU and #[rrt::main].
-app = ["dep:rrt-app", "dep:rrt-macros", "gpu", "input"]
+app = ["dep:rrt-app", "gpu", "input"]
 # wgpu without a window: offscreen targets, the presenter.
 gpu = ["dep:rrt-gpu"]
 # The host pad alone.
@@ -17,16 +17,20 @@ input = ["dep:rrt-input"]
 audio = ["dep:rrt-audio"]
 disc = ["dep:rrt-disc"]
 net = ["dep:rrt-net"]
+# The originals run for comparison: CPUs, HLE, the oracle. Off by default:
+# a port needs it in its tests and tools, not at play time.
+emu = ["dep:rrt-emu"]
 
 [dependencies]
 rrt-app = { workspace = true, optional = true }
 rrt-audio = { workspace = true, optional = true }
 rrt-disc = { workspace = true, optional = true }
+rrt-emu = { workspace = true, optional = true }
 rrt-gpu = { workspace = true, optional = true }
 rrt-image.workspace = true
 rrt-input = { workspace = true, optional = true }
 rrt-kit.workspace = true
-rrt-macros = { workspace = true, optional = true }
+rrt-macros.workspace = true
 rrt-net = { workspace = true, optional = true }
 
 [lints]

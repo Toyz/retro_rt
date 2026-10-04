@@ -23,11 +23,13 @@
 //! that is `rrt_app::IntoGame`: the game, or a `Result` of it. The expansion
 //! names `::rrt`, so the game depends on the `rrt` facade crate.
 
+mod args;
+
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::parse::Parser;
 use syn::punctuated::Punctuated;
-use syn::{Expr, ItemFn, MetaNameValue, ReturnType, Token, parse_macro_input};
+use syn::{DeriveInput, Expr, ItemFn, MetaNameValue, ReturnType, Token, parse_macro_input};
 
 /// Makes `fn main() -> impl IntoGame` the program: logging, the game from the
 /// body, then the loop. The attribute's `name = value` pairs set
@@ -70,4 +72,39 @@ pub fn main(attr: TokenStream, item: TokenStream) -> TokenStream {
         }
     }
     .into()
+}
+
+/// Implements `rrt::cli::Args` for a struct with named fields: each field an
+/// argument, its doc comment the help, the struct's doc comment the about.
+///
+/// By type: `bool` is a flag (`--name`); `Option<T>` an optional
+/// `--name VALUE`; `Vec<T>` a repeatable one; any other `T` a required one,
+/// or optional with `#[arg(default = "...")]`. `T` is anything
+/// `rrt::cli::FromArg` (strings, paths, numbers, `Size`, your own).
+///
+/// `#[arg(...)]` on a field: `long = "name"` (default: the field name with
+/// `-` for `_`), `short = 'x'`, `alias = "other"` (repeatable), `default =
+/// "text"`, `value_name = "PATH"`, `positional` (in field order; a `Vec` takes
+/// the rest), `flatten` (embed another `Args` struct's arguments, such as
+/// `rrt::app::AppArgs`). `#[args(crate = "path")]` on the struct changes where
+/// the `cli` module is found (default `::rrt::cli`).
+///
+/// ```ignore
+/// /// Hot Wheels Turbo Racing, ported.
+/// #[derive(rrt::Args)]
+/// struct Cli {
+///     /// The disc's CUE sheet.
+///     #[arg(positional, default = "work/disc/game.cue")]
+///     cue: PathBuf,
+///     /// Start on this track.
+///     #[arg(short = 't', default = "DESERT1")]
+///     track: String,
+///     #[arg(flatten)]
+///     app: rrt::app::AppArgs,
+/// }
+/// ```
+#[proc_macro_derive(Args, attributes(arg, args))]
+pub fn derive_args(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    args::derive(input).unwrap_or_else(|e| e.to_compile_error()).into()
 }

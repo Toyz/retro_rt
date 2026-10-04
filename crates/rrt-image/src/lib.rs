@@ -1,8 +1,9 @@
 //! Pictures out of a game: [`png::encode`] writes RGBA8, top row first, as
 //! the GPU readback ([`Picture`] or `rrt_gpu::Target::read_back`) gives it.
 //! No decoder: game data arrives in the game's own formats, which its crate
-//! decodes to RGBA.
+//! decodes to RGBA. [`font`] draws text on a picture for overlays.
 
+pub mod font;
 pub mod png;
 
 /// An RGBA8 picture, top row first, `width * height * 4` bytes.

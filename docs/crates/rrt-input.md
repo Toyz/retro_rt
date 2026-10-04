@@ -2,7 +2,7 @@
 title: rrt-input, the host's pad
 status: solid
 crates: rrt-input
-covers: rrt_input::Input, rrt_input::Input::read, rrt_input::Input::keyboard_only, rrt_input::Input::rumble, rrt_input::Input::motors, rrt_input::Input::describe, rrt_input::Input::gamepads, rrt_input::compose, rrt_input::GamepadState, rrt_input::Pad, rrt_input::Pad::pressed, rrt_input::Pad::released, rrt_input::Buttons, rrt_input::Buttons::libpad, rrt_input::Buttons::from_libpad, rrt_input::Buttons::by_name, rrt_input::Stick, rrt_input::axis_byte, rrt_input::square_stick, rrt_input::StickShape, rrt_input::Motors, rrt_input::KeyMap, rrt_input::Keyboard, rrt_input::Side, rrt_input::Script, rrt_input::Script::parse, rrt_input::Script::buttons_at, rrt_input::Script::end, rrt_input::Press
+covers: rrt_input::Input, rrt_input::Input::read, rrt_input::Input::keyboard_only, rrt_input::Input::rumble, rrt_input::Input::motors, rrt_input::Input::describe, rrt_input::Input::gamepads, rrt_input::compose, rrt_input::GamepadState, rrt_input::Pad, rrt_input::Pad::pressed, rrt_input::Pad::released, rrt_input::Buttons, rrt_input::Buttons::libpad, rrt_input::Buttons::from_libpad, rrt_input::Buttons::by_name, rrt_input::Stick, rrt_input::axis_byte, rrt_input::square_stick, rrt_input::StickShape, rrt_input::Motors, rrt_input::KeyMap, rrt_input::Keyboard, rrt_input::Side, rrt_input::PadLog, rrt_input::PadLog::record, rrt_input::PadLog::record_command, rrt_input::PadLog::pad, rrt_input::PadLog::commands, rrt_input::PadLog::to_text, rrt_input::PadLog::parse, rrt_input::Script, rrt_input::Script::parse, rrt_input::Script::buttons_at, rrt_input::Script::end, rrt_input::Press
 ---
 
 # rrt-input
@@ -59,6 +59,23 @@ presses add up. `buttons_at(frame)` is what the script holds on a frame,
 naming the item and what is wrong. `rrt-app` applies one through
 `Config::script`.
 
+## Pad logs
+
+`PadLog` records every frame's pad and the console commands run on the way,
+for replaying a session exactly and attaching to a bug report. It is text,
+one line a frame:
+
+```
+# rrt pad log 1                      header; later '#' lines are notes
+FRAME BUTTONS LX LY RX RY L2 R2 A    decimal frame; the rest hex; A 1 analog
+120 4000 80 80 80 80 00 00 1
+120 > rumble on                      a console command run on frame 120
+```
+
+`record`, `record_command`, `pad(frame)`, `commands(frame)`, `end()`,
+`to_text()`, `parse(text)` (errors name the line). `rrt-app` replays one with
+`Config::replay` and writes one with `Config::record`.
+
 ## Rumble
 
 `Input::rumble(Motors { small, large })` as a DualShock takes them: the
@@ -80,7 +97,7 @@ supports force feedback, and remade when the read pad changes.
 `the_active_pad_changes_on_a_press_or_a_real_push`,
 `rumble_remembers_the_motors_with_no_gamepad`,
 `parses_frames_buttons_and_holds`, `holds_cover_their_frames_and_overlaps_add_up`,
-`bad_items_say_what_is_wrong`.
+`bad_items_say_what_is_wrong`, `a_log_round_trips_through_text`, `bad_lines_say_which_and_why`.
 
 ## On hardware
 

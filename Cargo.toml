@@ -15,6 +15,7 @@ rrt = { path = "crates/rrt" }
 rrt-app = { path = "crates/rrt-app" }
 rrt-audio = { path = "crates/rrt-audio" }
 rrt-disc = { path = "crates/rrt-disc" }
+rrt-emu = { path = "crates/rrt-emu" }
 rrt-gpu = { path = "crates/rrt-gpu" }
 rrt-image = { path = "crates/rrt-image" }
 rrt-input = { path = "crates/rrt-input" }

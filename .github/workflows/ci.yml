@@ -46,6 +46,13 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets
       - run: xvfb-run -a cargo test --workspace
+      # Each rrt feature alone, so a tool depending on one part still builds.
+      - name: Feature matrix
+        run: |
+          cargo check -q -p rrt --no-default-features
+          for f in disc net gpu input audio emu app; do
+            cargo check -q -p rrt --no-default-features --features "$f"
+          done
       - name: Rustdoc
         run: cargo doc --workspace --no-deps
         env:
