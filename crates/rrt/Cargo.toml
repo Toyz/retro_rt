@@ -1,0 +1,33 @@
+[package]
+name = "rrt"
+version = "0.1.0"
+description = "retro_rt in one dependency: the engine loop, the pad, wgpu, audio, discs, networking, pictures and the small shared types (buffers, arenas, fixed point), behind features, with the wgpu, winit and glam versions every game shares."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+default = ["app", "audio", "disc", "net"]
+# The loop, the window, the pad, the GPU and #[rrt::main].
+app = ["dep:rrt-app", "dep:rrt-macros", "gpu", "input"]
+# wgpu without a window: offscreen targets, the presenter.
+gpu = ["dep:rrt-gpu"]
+# The host pad alone.
+input = ["dep:rrt-input"]
+audio = ["dep:rrt-audio"]
+disc = ["dep:rrt-disc"]
+net = ["dep:rrt-net"]
+
+[dependencies]
+rrt-app = { workspace = true, optional = true }
+rrt-audio = { workspace = true, optional = true }
+rrt-disc = { workspace = true, optional = true }
+rrt-gpu = { workspace = true, optional = true }
+rrt-image.workspace = true
+rrt-input = { workspace = true, optional = true }
+rrt-kit.workspace = true
+rrt-macros = { workspace = true, optional = true }
+rrt-net = { workspace = true, optional = true }
+
+[lints]
+workspace = true

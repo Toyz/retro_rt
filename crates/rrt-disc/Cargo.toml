@@ -1,0 +1,12 @@
+[package]
+name = "rrt-disc"
+version = "0.1.0"
+description = "Game discs: CUE sheets with raw 2352-byte BIN tracks (CD-XA sectors exposed), cooked 2048-byte ISO images (DVDs), and the ISO 9660 file system on either, read from the file without loading it whole."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

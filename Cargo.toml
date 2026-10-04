@@ -1,0 +1,50 @@
+[workspace]
+members = ["crates/*"]
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# Every game built on retro_rt takes these versions through the `rrt` facade
+# (`rrt::wgpu`, `rrt::winit`, `rrt::glam`), so a game and the runtime can never
+# disagree on a wgpu type. Bump them here, once, for every project.
+[workspace.dependencies]
+rrt = { path = "crates/rrt" }
+rrt-app = { path = "crates/rrt-app" }
+rrt-audio = { path = "crates/rrt-audio" }
+rrt-disc = { path = "crates/rrt-disc" }
+rrt-gpu = { path = "crates/rrt-gpu" }
+rrt-image = { path = "crates/rrt-image" }
+rrt-input = { path = "crates/rrt-input" }
+rrt-kit = { path = "crates/rrt-kit" }
+rrt-macros = { path = "crates/rrt-macros" }
+rrt-net = { path = "crates/rrt-net" }
+cpal = "0.18.2"
+flate2 = "1.1.10"
+gilrs = "0.11.2"
+glam = "0.33.3"
+pollster = "1.0.1"
+proc-macro2 = "1.0.106"
+quote = "1.0.45"
+socket2 = { version = "0.6.5", features = ["all"] }
+syn = { version = "2.0.117", features = ["full"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+wgpu = "30.0.1"
+winit = "0.30.13"
+
+# Every public item carries a doc comment; see the `docs` skill.
+[workspace.lints.rust]
+missing_docs = "warn"
+unsafe_op_in_unsafe_fn = "deny"
+
+[workspace.lints.rustdoc]
+broken_intra_doc_links = "warn"
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3

@@ -1,0 +1,15 @@
+[package]
+name = "rrt-input"
+version = "0.1.0"
+description = "The host's pad: any gamepad gilrs knows, or the keyboard, read once a frame as a PlayStation-style pad (buttons, byte sticks, analog triggers), and rumble back to it."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+gilrs.workspace = true
+winit.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true

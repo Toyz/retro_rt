@@ -1,0 +1,76 @@
+# Build, lint and test every crate, and hold the docs to the code.
+#
+# The GPU tests (crates/rrt-gpu/tests, crates/rrt-app/tests) run on Mesa's
+# lavapipe, a software Vulkan driver, and under Xvfb, so the presenter,
+# targets, the headless loop and the windowed loop are exercised for real;
+# `rrt-demo --shot` then renders a whole frame the same way. The network tests
+# use loopback. The audio device test skips: a runner has no sound card.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # gilrs needs libudev, cpal ALSA; lavapipe is the GPU, Xvfb the display.
+      - name: System libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config libudev-dev libasound2-dev mesa-vulkan-drivers xvfb
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets
+      - run: xvfb-run -a cargo test --workspace
+      - name: Rustdoc
+        run: cargo doc --workspace --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
+      - name: Docs agree with the code
+        run: cargo run -q -p rrt-docs -- check
+      - name: A whole frame, headless
+        run: |
+          mkdir -p work
+          cargo run -q -p rrt-demo -- --shot work/demo.png
+          test -s work/demo.png
+
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: demo-shot
+          path: work/demo.png
+          if-no-files-found: ignore
+
+  worklog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install cairns
+        env:
+          CAIRNS_BIN_DIR: ${{ runner.temp }}/bin
+          CAIRNS_VERSION: v0.8.1
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/Toyz/cairns/main/install.sh | sh
+          echo "${{ runner.temp }}/bin" >> "$GITHUB_PATH"
+      - run: cairns check

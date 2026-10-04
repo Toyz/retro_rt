@@ -1,0 +1,23 @@
+[package]
+name = "rrt-app"
+version = "0.1.0"
+description = "The engine loop: implement Game, and run() opens the window and the GPU, reads the pad, ticks the game at the console's fixed rate, and presents what it draws. headless() runs the same game with no window, for --shot and tests."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+rrt-gpu.workspace = true
+rrt-image.workspace = true
+rrt-input.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+winit.workspace = true
+
+# The window test runs on the main thread, as winit requires: its own main.
+[[test]]
+name = "window"
+harness = false
+
+[lints]
+workspace = true

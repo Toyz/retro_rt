@@ -1,0 +1,12 @@
+[package]
+name = "rrt-kit"
+version = "0.1.0"
+description = "The small things every port rewrites: buffers recycled across frames (Staging, Pool), a generational arena (Slab), a fixed-capacity history (Ring), fixed-point numbers (Q12), a byte reader for file formats, the era's colour formats (PS1/PS2, N64, GameCube, Dreamcast, PSP, Sega, SNES/GBA) with YCbCr and palettes, and BCD. No dependencies."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

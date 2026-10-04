@@ -1,0 +1,13 @@
+[package]
+name = "rrt-image"
+version = "0.1.0"
+description = "Pictures out of a game: a minimal PNG writer for RGBA8, for --shot, dumps and test fixtures."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+flate2.workspace = true
+
+[lints]
+workspace = true

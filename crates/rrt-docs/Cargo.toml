@@ -1,0 +1,12 @@
+[package]
+name = "rrt-docs"
+version = "0.1.0"
+description = "Keeps docs/ honest: regenerates the index from every page's front matter and checks pages against the code - every crate has a page, every item a page covers still exists, no dead links."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

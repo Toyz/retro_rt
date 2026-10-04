@@ -1,0 +1,6 @@
+# Build output and scratch.
+/target
+/.claude/worktrees/
+
+# Shots and dumps the demo and tools write.
+/work

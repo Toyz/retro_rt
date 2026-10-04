@@ -1,0 +1,18 @@
+[package]
+name = "rrt-macros"
+version = "0.1.0"
+description = "#[rrt::main]: turns `fn main() -> impl IntoGame` into a program that logs, builds the game and runs the loop with the attribute's settings."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2.workspace = true
+quote.workspace = true
+syn.workspace = true
+
+[lints]
+workspace = true

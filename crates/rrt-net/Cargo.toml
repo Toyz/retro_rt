@@ -1,0 +1,13 @@
+[package]
+name = "rrt-net"
+version = "0.1.0"
+description = "Networking for a fixed-tick loop: non-blocking UDP (unicast, broadcast, multicast), TCP client and server with length-prefixed or raw framing, and reliable UDP with unreliable, sequenced, reliable and reliable-ordered channels. Polled once a tick; std only, no async runtime."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+socket2.workspace = true
+
+[lints]
+workspace = true
