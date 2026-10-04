@@ -2,7 +2,7 @@
 title: rrt-emu, the originals run for comparison
 status: partial
 crates: rrt-emu
-covers: rrt_emu::Cpu, rrt_emu::Cpu::step, rrt_emu::Cpu::abi, rrt_emu::Cpu::in_delay_slot, rrt_emu::Cpu::settle, rrt_emu::Abi, rrt_emu::ReturnAddress, rrt_emu::Endian, rrt_emu::Stop, rrt_emu::Bus, rrt_emu::BusExt, rrt_emu::Bus::canonical, rrt_emu::Memory, rrt_emu::Memory::psx, rrt_emu::Memory::ps2, rrt_emu::Region, rrt_emu::Device, rrt_emu::IoLog, rrt_emu::SharedBus, rrt_emu::Machine, rrt_emu::Machine::call, rrt_emu::Machine::call_recorded, rrt_emu::Machine::hook, rrt_emu::Machine::hook_symbol, rrt_emu::Machine::stub, rrt_emu::Machine::on_syscall, rrt_emu::Machine::check, rrt_emu::Machine::canonical, rrt_emu::machine::Extensions, rrt_emu::Call, rrt_emu::HookResult, rrt_emu::Outcome, rrt_emu::Change, rrt_emu::CheckStats, rrt_emu::Heap, rrt_emu::Symbols, rrt_emu::PsxExe, rrt_emu::Elf, rrt_emu::hle::libc, rrt_emu::hle::install, rrt_emu::psx::R3000, rrt_emu::psx::Gte, rrt_emu::psx::Bios, rrt_emu::psx::machine, rrt_emu::psx::machine_with_exe, rrt_emu::psx::bios::critical_sections, rrt_emu::ee::Ee, rrt_emu::ee::Features, rrt_emu::ee::machine, rrt_emu::ee::machine_with_elf, rrt_emu::ee::kernel::install, rrt_emu::ee::float::add, rrt_emu::ee::float::mul, rrt_emu::ee::float::div, rrt_emu::ee::float::sqrt, rrt_emu::spu::decode_frame, rrt_emu::spu::decode_sample, rrt_emu::spu::interpolate, rrt_emu::spu::GAUSS
+covers: rrt_emu::Cpu, rrt_emu::Cpu::step, rrt_emu::Cpu::abi, rrt_emu::Cpu::in_delay_slot, rrt_emu::Cpu::settle, rrt_emu::Abi, rrt_emu::ReturnAddress, rrt_emu::Endian, rrt_emu::Stop, rrt_emu::Bus, rrt_emu::BusExt, rrt_emu::Bus::canonical, rrt_emu::Memory, rrt_emu::Memory::psx, rrt_emu::Memory::ps2, rrt_emu::Region, rrt_emu::Device, rrt_emu::IoLog, rrt_emu::SharedBus, rrt_emu::Machine, rrt_emu::Machine::call, rrt_emu::Machine::call_recorded, rrt_emu::Machine::hook, rrt_emu::Machine::hook_symbol, rrt_emu::Machine::stub, rrt_emu::Machine::on_syscall, rrt_emu::Machine::check, rrt_emu::Machine::canonical, rrt_emu::machine::Extensions, rrt_emu::Call, rrt_emu::HookResult, rrt_emu::Outcome, rrt_emu::Change, rrt_emu::CheckStats, rrt_emu::Heap, rrt_emu::Symbols, rrt_emu::PsxExe, rrt_emu::Elf, rrt_emu::hle::libc, rrt_emu::hle::install, rrt_emu::psx::R3000, rrt_emu::psx::Gte, rrt_emu::psx::Bios, rrt_emu::psx::machine, rrt_emu::psx::machine_with_exe, rrt_emu::psx::bios::critical_sections, rrt_emu::ee::Ee, rrt_emu::ee::Features, rrt_emu::ee::machine, rrt_emu::ee::machine_with_elf, rrt_emu::ee::kernel::install, rrt_emu::ee::float::add, rrt_emu::ee::float::mul, rrt_emu::ee::float::div, rrt_emu::ee::float::sqrt
 ---
 
 # rrt-emu
@@ -152,16 +152,13 @@ blocks); `machine_with_elf` loads an ELF, copies its symbols, sets gp from
 
 ## SPU: `spu`
 
-PS-ADPCM, the PS1 and PS2 SPU's sample format (VAG, VAB banks, SPU2 sound
-data): `decode_frame` (16 bytes to 28 samples, the filter history carried
-in `History`), `decode_sample` (to the END frame, with the loop start a
-REPEAT jumps to, and how many samples clamped), `decode`. `GAUSS` and
-`interpolate` are the SPU's 4-point Gaussian interpolation. hwtr and
-piney_apples each decoded the format identically before this module.
+`rrt_kit::adpcm::spu` re-exported: PS-ADPCM and the SPU's Gaussian
+interpolation, for the reference's own sound model. A port reaches them
+through `rrt::kit::adpcm` at play time; see the rrt-kit page.
 
 ## Tests
 
-84 in the crate. The harness on a made-up CPU in both conventions:
+77 in the crate. The harness on a made-up CPU in both conventions:
 `calls_pass_register_and_stack_arguments_in_either_convention`,
 `hooks_and_syscalls_stand_in_for_code`, `syscall_handlers_chain_newest_first`,
 `the_oracle_records_what_a_call_changed`,
@@ -175,8 +172,8 @@ stub, an unknown BIOS function, a game-supplied one, the BIOS heap, a hook
 not firing in a delay slot, `call_recorded`. PS2 (28): the float rules,
 delay slots and branch-likely, 128-bit loads and stores, MMI lanes, VU0
 macro instructions through the bus, the kernel stubs by name, an ELF
-machine, a hook not firing in a delay slot. SPU (7) and the generic C
-library HLE (3).
+machine, a hook not firing in a delay slot. The generic C library HLE
+(3). The SPU format's tests moved with it to rrt-kit.
 
 ## Not here
 

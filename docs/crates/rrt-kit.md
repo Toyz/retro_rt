@@ -1,8 +1,8 @@
 ---
 title: rrt-kit, the small things every port rewrites
-status: solid
+status: partial
 crates: rrt-kit
-covers: rrt_kit::cli::Args, rrt_kit::cli::Args::parse_env, rrt_kit::cli::Args::parse_from, rrt_kit::cli::parse, rrt_kit::cli::usage, rrt_kit::cli::Spec, rrt_kit::cli::Kind, rrt_kit::cli::Matches, rrt_kit::cli::FromArg, rrt_kit::cli::Size, rrt_kit::cli::Error, rrt_kit::compress::Lzss, rrt_kit::compress::Lzss::decode, rrt_kit::compress::Lzss::encode, rrt_kit::compress::FlagOrder, rrt_kit::compress::Token, rrt_kit::compress::lz10_decode, rrt_kit::compress::lz10_encode, rrt_kit::compress::packbits_decode, rrt_kit::compress::packbits_encode, rrt_kit::compress::rl_decode, rrt_kit::compress::rl_encode, rrt_kit::compress::Error, rrt_kit::Angle, rrt_kit::Angle4096, rrt_kit::Bam, rrt_kit::Angle::sin, rrt_kit::Angle::cos, rrt_kit::Angle::rotate, rrt_kit::Angle::convert, rrt_kit::atan2, rrt_kit::isqrt, rrt_kit::sqrt_q12, rrt_kit::hypot, rrt_kit::Generator, rrt_kit::Generator::next, rrt_kit::Generator::bits, rrt_kit::Generator::state, rrt_kit::Generator::set_state, rrt_kit::RngExt, rrt_kit::RngExt::modulo, rrt_kit::RngExt::scaled, rrt_kit::RngExt::top_bits, rrt_kit::RngExt::below, rrt_kit::RngExt::range, rrt_kit::RngExt::chance, rrt_kit::RngExt::pick, rrt_kit::RngExt::shuffle, rrt_kit::RngExt::unit_f32, rrt_kit::RngExt::skip, rrt_kit::rng::Lcg, rrt_kit::rng::Lcg::jump, rrt_kit::rng::Lcg64, rrt_kit::rng::Xorshift32, rrt_kit::rng::Lfsr, rrt_kit::rng::Lfsr::next_bit, rrt_kit::rng::TableRng, rrt_kit::rng::Pcg32, rrt_kit::rng::Counted, rrt_kit::rng::Recorded, rrt_kit::rng::Forced, rrt_kit::rng::Forced::force, rrt_kit::Staging, rrt_kit::Staging::pack, rrt_kit::Staging::begin, rrt_kit::Staging::bytes, rrt_kit::Pack, rrt_kit::Pool, rrt_kit::Pool::take, rrt_kit::Pool::give, rrt_kit::Pool::with_max_spare, rrt_kit::Pool::with_max_capacity, rrt_kit::Pool::trim, rrt_kit::SyncPool, rrt_kit::SyncPool::take, rrt_kit::SyncPool::take_vec, rrt_kit::SyncPool::give, rrt_kit::SyncPool::set_max_spare, rrt_kit::SyncPool::set_max_capacity, rrt_kit::SyncPool::trim, rrt_kit::Pooled, rrt_kit::Pooled::into_inner, rrt_kit::Slab, rrt_kit::Slab::insert, rrt_kit::Slab::get, rrt_kit::Slab::get_mut, rrt_kit::Slab::remove, rrt_kit::Slab::retain, rrt_kit::Handle, rrt_kit::Ring, rrt_kit::Ring::push, rrt_kit::Ring::iter, rrt_kit::Fixed, rrt_kit::Q12, rrt_kit::Fixed::from_raw, rrt_kit::Fixed::from_f32, rrt_kit::Fixed::to_f32, rrt_kit::Fixed::floor, rrt_kit::Reader, rrt_kit::Eof, rrt_kit::Pixel, rrt_kit::color::expand, rrt_kit::color::reduce, rrt_kit::color::to_rgba8, rrt_kit::Rgb555, rrt_kit::Rgb555::rgb8, rrt_kit::Rgb555::rgb8_shifted, rrt_kit::Rgb555::rgba8, rrt_kit::Argb1555, rrt_kit::Rgb565, rrt_kit::Bgr565, rrt_kit::Argb4444, rrt_kit::Abgr4444, rrt_kit::Rgba5551, rrt_kit::Rgb5a3, rrt_kit::Ia16, rrt_kit::Ia8, rrt_kit::Md333, rrt_kit::Sms222, rrt_kit::Rgb332, rrt_kit::PsmCt32, rrt_kit::color::ycbcr_to_rgb, rrt_kit::Range, rrt_kit::color::indexed4, rrt_kit::color::indexed8, rrt_kit::Nibbles, rrt_kit::color::ps2_clut_index, rrt_kit::bcd::decode, rrt_kit::bcd::encode, rrt_kit::bcd::msf_to_lba, rrt_kit::bcd::lba_to_msf
+covers: rrt_kit::cli::Args, rrt_kit::cli::Args::parse_env, rrt_kit::cli::Args::parse_from, rrt_kit::cli::parse, rrt_kit::cli::usage, rrt_kit::cli::Spec, rrt_kit::cli::Kind, rrt_kit::cli::Matches, rrt_kit::cli::FromArg, rrt_kit::cli::Size, rrt_kit::cli::Error, rrt_kit::compress::Lzss, rrt_kit::compress::Lzss::decode, rrt_kit::compress::Lzss::encode, rrt_kit::compress::FlagOrder, rrt_kit::compress::Token, rrt_kit::compress::lz10_decode, rrt_kit::compress::lz10_encode, rrt_kit::compress::packbits_decode, rrt_kit::compress::packbits_encode, rrt_kit::compress::rl_decode, rrt_kit::compress::rl_encode, rrt_kit::compress::Error, rrt_kit::Angle, rrt_kit::Angle4096, rrt_kit::Bam, rrt_kit::Angle::sin, rrt_kit::Angle::cos, rrt_kit::Angle::rotate, rrt_kit::Angle::convert, rrt_kit::atan2, rrt_kit::isqrt, rrt_kit::sqrt_q12, rrt_kit::hypot, rrt_kit::Generator, rrt_kit::Generator::next, rrt_kit::Generator::bits, rrt_kit::Generator::state, rrt_kit::Generator::set_state, rrt_kit::RngExt, rrt_kit::RngExt::modulo, rrt_kit::RngExt::scaled, rrt_kit::RngExt::top_bits, rrt_kit::RngExt::below, rrt_kit::RngExt::range, rrt_kit::RngExt::chance, rrt_kit::RngExt::pick, rrt_kit::RngExt::shuffle, rrt_kit::RngExt::unit_f32, rrt_kit::RngExt::skip, rrt_kit::rng::Lcg, rrt_kit::rng::Lcg::jump, rrt_kit::rng::Lcg64, rrt_kit::rng::Xorshift32, rrt_kit::rng::Lfsr, rrt_kit::rng::Lfsr::next_bit, rrt_kit::rng::TableRng, rrt_kit::rng::Pcg32, rrt_kit::rng::Counted, rrt_kit::rng::Recorded, rrt_kit::rng::Forced, rrt_kit::rng::Forced::force, rrt_kit::Staging, rrt_kit::Staging::pack, rrt_kit::Staging::begin, rrt_kit::Staging::bytes, rrt_kit::Pack, rrt_kit::Pool, rrt_kit::Pool::take, rrt_kit::Pool::give, rrt_kit::Pool::with_max_spare, rrt_kit::Pool::with_max_capacity, rrt_kit::Pool::trim, rrt_kit::SyncPool, rrt_kit::SyncPool::take, rrt_kit::SyncPool::take_vec, rrt_kit::SyncPool::give, rrt_kit::SyncPool::set_max_spare, rrt_kit::SyncPool::set_max_capacity, rrt_kit::SyncPool::trim, rrt_kit::Pooled, rrt_kit::Pooled::into_inner, rrt_kit::Slab, rrt_kit::Slab::insert, rrt_kit::Slab::get, rrt_kit::Slab::get_mut, rrt_kit::Slab::remove, rrt_kit::Slab::retain, rrt_kit::Handle, rrt_kit::Ring, rrt_kit::Ring::push, rrt_kit::Ring::iter, rrt_kit::Fixed, rrt_kit::Q12, rrt_kit::Fixed::from_raw, rrt_kit::Fixed::from_f32, rrt_kit::Fixed::to_f32, rrt_kit::Fixed::floor, rrt_kit::Reader, rrt_kit::Eof, rrt_kit::Pixel, rrt_kit::color::expand, rrt_kit::color::reduce, rrt_kit::color::to_rgba8, rrt_kit::Rgb555, rrt_kit::Rgb555::rgb8, rrt_kit::Rgb555::rgb8_shifted, rrt_kit::Rgb555::rgba8, rrt_kit::Argb1555, rrt_kit::Rgb565, rrt_kit::Bgr565, rrt_kit::Argb4444, rrt_kit::Abgr4444, rrt_kit::Rgba5551, rrt_kit::Rgb5a3, rrt_kit::Ia16, rrt_kit::Ia8, rrt_kit::Md333, rrt_kit::Sms222, rrt_kit::Rgb332, rrt_kit::PsmCt32, rrt_kit::color::ycbcr_to_rgb, rrt_kit::Range, rrt_kit::color::indexed4, rrt_kit::color::indexed8, rrt_kit::Nibbles, rrt_kit::color::ps2_clut_index, rrt_kit::bcd::decode, rrt_kit::bcd::encode, rrt_kit::bcd::msf_to_lba, rrt_kit::bcd::lba_to_msf, rrt_kit::adpcm::spu::decode_frame, rrt_kit::adpcm::spu::decode_sample, rrt_kit::adpcm::spu::decode, rrt_kit::adpcm::spu::interpolate, rrt_kit::adpcm::spu::GAUSS, rrt_kit::adpcm::spu::History, rrt_kit::adpcm::spu::Sample, rrt_kit::adpcm::xa::Decoder, rrt_kit::adpcm::xa::Decoder::decode, rrt_kit::adpcm::xa::Coding, rrt_kit::adpcm::xa::SECTOR_AUDIO
 ---
 
 # rrt-kit
@@ -241,6 +241,29 @@ for a 256-colour CLUT, its own inverse.
 addresses: `msf_to_lba` (the 150-sector lead-in taken off; None inside it) and
 `lba_to_msf`.
 
+## The PlayStation's sound formats: `adpcm`
+
+For a port's own sound engine, at play time.
+
+`adpcm::spu` is PS-ADPCM, the PS1 and PS2 SPU's sample format (VAG, VAB
+banks, SPU2 sound data): `decode_frame` (16 bytes to 28 samples, the filter
+history carried in `History`), `decode_sample` (to the END frame, with the
+loop start a REPEAT jumps to, and how many samples clamped), `decode`.
+`GAUSS` and `interpolate` are the SPU's 4-point Gaussian interpolation.
+hwtr and piney_apples each decoded the format identically before this
+module. `rrt_emu::spu` re-exports it.
+
+`adpcm::xa` is CD-XA ADPCM, the CD drive's streamed audio: a `Decoder`
+per stream takes each sector's 0x900 bytes of audio (`SECTOR_AUDIO`) with
+its subheader's `Coding` byte (mono or stereo, 37800 or 18900 Hz) and
+appends stereo frames at 44100 Hz, resampled by the drive's seven 29-tap
+zigzag filters (psx-spx's tables, which it calls nearly correct; each passes
+a held level at about 0.91). The filter history and the ring carry across
+sectors.
+
+The voice state machine, ADSR envelopes, reverb, the mixer, the drive's
+volume matrix and which sectors make a stream are each game's sound engine.
+
 ## Tests
 
 `values_pack_little_endian_in_field_order`, `the_buffer_is_reused_and_never_shrinks`,
@@ -280,6 +303,13 @@ addresses: `msf_to_lba` (the 150-sector lead-in taken off; None inside it) and
 `counted_counts_and_recorded_remembers`,
 `forced_values_come_first_and_leave_the_sequence_alone`,
 `a_custom_generator_gets_every_helper`.
+PS-ADPCM: `a_silent_end_frame_is_28_zeros`, `the_shift_scales_each_nibble`,
+`the_filter_history_carries_across_frames`, `samples_past_16_bits_clamp_and_are_counted`,
+`decoding_stops_at_the_end_frame_and_reports_the_loop`, `every_gauss_row_sums_to_255_256ths`,
+`interpolating_a_constant_gives_back_255_256ths_of_it`. XA:
+`a_sector_makes_its_share_of_44100`, `the_filters_pass_a_constant_at_the_same_gain`,
+`stereo_puts_even_blocks_left_and_odd_right`, `a_held_level_comes_out_at_the_filters_gain`,
+`the_history_carries_into_the_next_sector`, `eight_bit_and_short_sectors_decode_to_nothing`.
 
 ## Not here
 
@@ -298,4 +328,5 @@ anything one console's hardware alone uses.
 
 ## Gaps
 
-Nothing known.
+- XA's zigzag filters are psx-spx's tables, not checked against a hardware
+  recording here; 8-bit XA is not decoded.

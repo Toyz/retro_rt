@@ -20,8 +20,9 @@
 //!   port computes from the same inputs; [`Machine::check`] watches every
 //!   call of a function while the whole original runs, comparing at entry
 //!   and return ([`CheckStats`]).
-//! - Hardware data formats several games of a console share: [`spu`] (the
-//!   PS1/PS2 SPU's ADPCM).
+//! - [`spu`]: the PS1/PS2 SPU's ADPCM and Gaussian interpolation,
+//!   re-exported from `rrt_kit::adpcm::spu` (a port uses it from there at
+//!   play time).
 //!
 //! Nothing here is needed at play time: a port runs its own Rust code. See
 //! `docs/crates/rrt-emu.md`.

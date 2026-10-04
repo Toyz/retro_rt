@@ -1773,6 +1773,9 @@ version = "0.1.0"
 [[package]]
 name = "rrt-emu"
 version = "0.1.0"
+dependencies = [
+ "rrt-kit",
+]
 
 [[package]]
 name = "rrt-gpu"
