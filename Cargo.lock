@@ -1797,6 +1797,7 @@ version = "0.1.0"
 dependencies = [
  "gilrs",
  "tracing",
+ "tracing-subscriber",
  "winit",
 ]
 

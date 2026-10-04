@@ -13,3 +13,6 @@ tracing.workspace = true
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+tracing-subscriber.workspace = true

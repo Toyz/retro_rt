@@ -58,6 +58,7 @@ pub struct Input {
     pub keyboard: Keyboard,
     rumble: Option<Rumble>,
     motors: Motors,
+    warned_no_ff: bool,
 }
 
 impl Default for Input {
@@ -89,6 +90,7 @@ impl Input {
             keyboard: Keyboard::default(),
             rumble: None,
             motors: Motors::default(),
+            warned_no_ff: false,
         }
     }
 
@@ -166,9 +168,21 @@ impl Input {
 
     fn send_motors(&mut self, motors: Motors) {
         let Some(g) = &mut self.gilrs else { return };
-        let target = choose(g, self.active).filter(|id| g.gamepad(*id).is_ff_supported());
+        let read = choose(g, self.active);
+        let target = read.filter(|id| g.gamepad(*id).is_ff_supported());
         if self.rumble.as_ref().map(|r| r.pad) != target {
             self.rumble = target.and_then(|id| Rumble::new(g, id));
+            if let Some(id) = target.filter(|_| self.rumble.is_some()) {
+                tracing::info!("rumble on gamepad {id} ({})", g.gamepad(id).name());
+            }
+        }
+        // A pad that cannot rumble would otherwise fail in silence.
+        if target.is_none() && motors != Motors::default() && !self.warned_no_ff {
+            self.warned_no_ff = true;
+            match read {
+                Some(id) => tracing::warn!("gamepad {id} ({}) reports no force feedback", g.gamepad(id).name()),
+                None => tracing::warn!("no gamepad to rumble"),
+            }
         }
         if let Some(r) = &self.rumble {
             r.set(motors);

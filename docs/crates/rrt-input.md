@@ -107,6 +107,20 @@ Linux is found and listed by `Input::gamepads` (seen in `rrt-demo`'s log).
 `rrt-demo` is the check for the rest: every button lights its box, the sticks
 move their dots, L2/R2 fill their bars, Circle runs the motors.
 
+`cargo run -p rrt-input --example rumble` probes rumble in labelled phases,
+first through gilrs directly, then through `Input::rumble`, printing each
+step. On this machine (DualSense on USB, `/dev/input/event2`, `FF_RUMBLE`
+advertised, the user granted write by logind's ACL) every step succeeds:
+the device opens for writing, both effects upload, play and stop arrive in
+order. Whether the motors turn is felt, not logged. With Steam running and
+its PlayStation controller support on, Steam owns the pad's HID output and
+can overwrite force feedback other programs send through the kernel - close
+Steam, or turn that support off, when rumble is silent.
+
+`Input::rumble` logs which pad it drives when it starts, and warns once
+when the pad being read reports no force feedback, instead of doing
+nothing in silence.
+
 ## Not here
 
 - What a game does with the pad: edge detection with a repeat delay, its own
