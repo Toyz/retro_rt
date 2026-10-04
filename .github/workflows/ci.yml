@@ -28,11 +28,14 @@ jobs:
       - uses: actions/checkout@v7
 
       # gilrs needs libudev, cpal ALSA; lavapipe is the GPU, Xvfb the display.
+      # winit loads xkbcommon and the X11 client libraries at run time, so
+      # the window test needs them installed, not just linked against.
       - name: System libraries
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            pkg-config libudev-dev libasound2-dev mesa-vulkan-drivers xvfb
+            pkg-config libudev-dev libasound2-dev mesa-vulkan-drivers xvfb \
+            libxkbcommon-x11-0 libx11-xcb1 libxcursor1 libxrandr2 libxi6
 
       - uses: dtolnay/rust-toolchain@stable
         with:
