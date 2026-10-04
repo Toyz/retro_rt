@@ -8,6 +8,10 @@
 //!   when their slot is reused (objects, entities, sounds); [`Ring`], a
 //!   fixed-capacity history that overwrites its oldest (frame times, input
 //!   logs, rewind).
+//! - Randomness a port can reproduce: [`rng`]'s [`Generator`] trait, the
+//!   era's generators (C and MSVC `rand`, newlib, xorshift, LFSRs, tables),
+//!   the reductions games applied ([`RngExt`]), and wrappers that count,
+//!   record or force values.
 //! - Data as the consoles hold it: [`Fixed`] fixed-point numbers ([`Q12`],
 //!   the PS1 GTE's 4.12 and 20.12), [`Reader`] for little- and big-endian file
 //!   formats, [`bcd`], and the era's colour formats behind one [`Pixel`]
@@ -23,6 +27,7 @@ pub mod color;
 pub mod fixed;
 pub mod pool;
 pub mod ring;
+pub mod rng;
 pub mod slab;
 pub mod staging;
 
@@ -34,5 +39,6 @@ pub use color::{
 pub use fixed::{Fixed, Q12};
 pub use pool::{Pool, Pooled, SyncPool};
 pub use ring::Ring;
+pub use rng::{Generator, RngExt};
 pub use slab::{Handle, Slab};
 pub use staging::{Pack, Staging};
