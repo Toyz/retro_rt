@@ -63,24 +63,119 @@ impl<'p, 'a, A: Arch + ?Sized> Pseudo<'p, 'a, A> {
     }
 
     /// How many argument registers the function at `addr` reads, from
-    /// liveness at its entry; all of them for an address that is no function.
+    /// liveness at its entry; all of them for an address that is no
+    /// function.
+    ///
+    /// A callee's arity feeds its caller's liveness, so functions that call
+    /// each other (a cycle in the call graph) are solved together: each
+    /// strongly connected component, callees first, as the least fixpoint
+    /// from no arguments. The answer does not depend on which function is
+    /// asked about first.
     pub fn arity(&self, addr: u32) -> usize {
         if let Some(&n) = self.arity.borrow().get(&addr) {
             return n;
         }
-        let all = self.cc.args.len();
         if !self.p.funcs.contains_key(&addr) {
-            return all;
+            return self.cc.args.len();
         }
-        // Recursion reads as all of them until it is known.
-        self.arity.borrow_mut().insert(addr, all);
+        for scc in self.components(addr) {
+            for &f in &scc {
+                self.arity.borrow_mut().insert(f, 0);
+            }
+            // Arities only grow from 0, and are bounded by the argument
+            // count, so this ends; the cap guards a malformed graph.
+            for _ in 0..=self.cc.args.len() * scc.len() + 1 {
+                let mut changed = false;
+                for &f in &scc {
+                    let n = self.entry_arity(f);
+                    if self.arity.borrow_mut().insert(f, n) != Some(n) {
+                        changed = true;
+                    }
+                }
+                if !changed {
+                    break;
+                }
+            }
+        }
+        self.arity.borrow()[&addr]
+    }
+
+    /// One pass of liveness for `f` with its callees' arities as known now.
+    fn entry_arity(&self, f: u32) -> usize {
         // A function that owns no instructions (all of them another's) has
         // no blocks: it reads as taking all of them.
-        let n = Cfg::new(self, addr)
-            .and_then(|f| f.live_in.first().cloned())
-            .map_or(all, |entry| self.cc.args.iter().rposition(|r| entry.contains(r)).map_or(0, |k| k + 1));
-        self.arity.borrow_mut().insert(addr, n);
-        n
+        Cfg::new(self, f).and_then(|c| c.live_in.first().cloned()).map_or(self.cc.args.len(), |entry| {
+            self.cc.args.iter().rposition(|r| entry.contains(r)).map_or(0, |k| k + 1)
+        })
+    }
+
+    /// The strongly connected components of the direct-call graph reachable
+    /// from `root` whose arities are not known yet, callees before callers
+    /// (Tarjan's algorithm, without recursion), each in address order.
+    fn components(&self, root: u32) -> Vec<Vec<u32>> {
+        let known = self.arity.borrow();
+        let callees = |f: u32| -> Vec<u32> {
+            self.p.funcs.get(&f).map_or(vec![], |g| {
+                g.calls
+                    .iter()
+                    .chain(&g.tail_calls)
+                    .copied()
+                    .filter(|t| self.p.funcs.contains_key(t) && !known.contains_key(t))
+                    .collect()
+            })
+        };
+        let mut index: BTreeMap<u32, (usize, usize)> = BTreeMap::new(); // f -> (index, lowlink)
+        let mut on_stack: BTreeSet<u32> = BTreeSet::new();
+        let mut stack: Vec<u32> = Vec::new();
+        let mut out: Vec<Vec<u32>> = Vec::new();
+        let mut next = 0;
+        // Frames: (function, its callees, how many visited).
+        let mut work: Vec<(u32, Vec<u32>, usize)> = vec![(root, callees(root), 0)];
+        index.insert(root, (0, 0));
+        next += 1;
+        stack.push(root);
+        on_stack.insert(root);
+        while let Some((f, cs, k)) = work.last_mut() {
+            if let Some(&c) = cs.get(*k) {
+                *k += 1;
+                let f = *f;
+                match index.get(&c) {
+                    None => {
+                        index.insert(c, (next, next));
+                        next += 1;
+                        stack.push(c);
+                        on_stack.insert(c);
+                        work.push((c, callees(c), 0));
+                    }
+                    Some(&(ci, _)) if on_stack.contains(&c) => {
+                        let e = index.get_mut(&f).unwrap();
+                        e.1 = e.1.min(ci);
+                    }
+                    Some(_) => {}
+                }
+                continue;
+            }
+            let f = *f;
+            work.pop();
+            let (fi, fl) = index[&f];
+            if let Some((parent, _, _)) = work.last() {
+                let p = index.get_mut(parent).unwrap();
+                p.1 = p.1.min(fl);
+            }
+            if fi == fl {
+                let mut scc = Vec::new();
+                while let Some(x) = stack.pop() {
+                    on_stack.remove(&x);
+                    scc.push(x);
+                    if x == f {
+                        break;
+                    }
+                }
+                scc.sort();
+                out.push(scc);
+            }
+        }
+        out
     }
 
     /// Pseudo-code for the function starting at `start`; None when no
@@ -174,11 +269,19 @@ impl<'p, 'a, A: Arch + ?Sized> Pseudo<'p, 'a, A> {
         let u = v as u32;
         if !(-4096..=4096).contains(&v)
             && self.p.image.contains(u)
-            && let Some(n) = (self.names)(u)
+            && let Some(n) = self.address(u)
         {
             return n;
         }
         if !(-4096..=4096).contains(&v) { format!("0x{u:x}") } else { v.to_string() }
+    }
+
+    /// An address as a value: a function by its name, a string as its
+    /// literal, anything else named as `&name`, since `name` alone is the
+    /// memory there (what a load or store of it reads or writes).
+    fn address(&self, at: u32) -> Option<String> {
+        let n = (self.names)(at)?;
+        Some(if n.starts_with('"') || self.p.funcs.contains_key(&at) { n } else { format!("&{n}") })
     }
 
     /// Where a load or store goes, as text.
@@ -205,7 +308,7 @@ impl<'p, 'a, A: Arch + ?Sized> Pseudo<'p, 'a, A> {
             // a byte offset.
             let at = *off as u32;
             if !(-4096..=4096).contains(off) && self.p.image.contains(at) {
-                let table = (self.names)(at).unwrap_or(format!("0x{at:08x}"));
+                let table = self.address(at).unwrap_or(format!("0x{at:08x}"));
                 return format!("*({t}*)({table} + {}){tag}", self.expr(a));
             }
             let sign = if *off < 0 { "-" } else { "" };
@@ -1408,5 +1511,57 @@ mod tests {
             "a constant target is a direct call: {text}"
         );
         assert!(text.contains("// func_80010000(a0, a1, a2, a3) 80010000..80010018"), "the walk ends at break: {text}");
+    }
+
+    /// Two functions calling each other: their arities are the least that
+    /// liveness allows, whichever is asked about first.
+    #[test]
+    fn arity_in_a_call_cycle_does_not_depend_on_order() {
+        let w = vec![
+            jal(BASE + 0x20), // 80010000 f: jal g
+            NOP,
+            JR_RA,
+            NOP,
+            0,
+            0,
+            0,
+            0,
+            i(4, 4, 0, 3),  // 80010020 g: beqz a0, 0x80010030
+            i(9, 4, 4, -1), //   addiu a0, a0, -1
+            jal(BASE),      //   jal f
+            NOP,
+            JR_RA, // 80010030
+            NOP,
+        ];
+        let bytes: Vec<u8> = w.iter().flat_map(|x| x.to_le_bytes()).collect();
+        let arch = Mips::r3000();
+        let image = Image { base: BASE, bytes: &bytes };
+        let syms = Symbols::new();
+        let p = Program::analyze(&arch, image, BASE, None, &syms);
+        let l = Listing::new(&p, &syms);
+        let f_first = Pseudo::new(&l);
+        let a = (f_first.arity(BASE), f_first.arity(BASE + 0x20));
+        let g_first = Pseudo::new(&l);
+        let b = (g_first.arity(BASE), g_first.arity(BASE + 0x20));
+        assert_eq!(a, (1, 1));
+        assert_eq!(b, a);
+    }
+
+    /// The memory at a data symbol is its name; its address is `&name`.
+    #[test]
+    fn a_data_symbols_address_and_its_memory_read_differently() {
+        let mut w = vec![
+            i(15, 0, 3, 0x8001),  // lui v1, 0x8001
+            i(35, 3, 2, 0x40),    // lw v0, 0x40(v1)
+            i(9, 3, 4, 0x40),     // addiu a0, v1, 0x40
+            r(0, 2, 4, 2, 0, 33), // addu v0, v0, a0
+            JR_RA,
+            NOP,
+        ];
+        w.resize(18, 0);
+        let mut syms = Symbols::new();
+        syms.mark(Symbol { kind: Kind::Data, size: Some(8), ..Symbol::new("table", BASE + 0x40) });
+        let text = pseudo(&w, &syms);
+        assert_eq!(body(&text), ["return (table + &table);"], "{text}");
     }
 }

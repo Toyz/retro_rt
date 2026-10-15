@@ -3,7 +3,7 @@ title: rrt-dis, disassembly, symbol files, analysis and pseudo-code
 status: solid
 crates: rrt-dis
 covers: rrt_dis::Arch, rrt_dis::Arch::decode, rrt_dis::Arch::render, rrt_dis::Arch::reg_name, rrt_dis::Arch::var_name, rrt_dis::Arch::lift, rrt_dis::Arch::call_conv, rrt_dis::Arch::fixed_size, rrt_dis::Arch::pointer_size, rrt_dis::Arch::evaluate, rrt_dis::Arch::global_pointer, rrt_dis::Arch::stack_pointer, rrt_dis::Arch::switch_bound, rrt_dis::CallConv, rrt_dis::Insn, rrt_dis::Insn::is_valid, rrt_dis::Insn::imm, rrt_dis::Flow, rrt_dis::Flow::falls_through, rrt_dis::Flow::target, rrt_dis::Operand, rrt_dis::Reg, rrt_dis::RegFile, rrt_dis::Mem, rrt_dis::Endian, rrt_dis::ir::Expr, rrt_dis::ir::Expr::eval, rrt_dis::ir::Expr::subst, rrt_dis::ir::Expr::simplify, rrt_dis::ir::Expr::simplify_all, rrt_dis::ir::BinOp, rrt_dis::ir::UnOp, rrt_dis::ir::Effect, rrt_dis::ir::Lifted, rrt_dis::ir::Lifted::reads, rrt_dis::ir::Lifted::writes, rrt_dis::arch::Backend, rrt_dis::arch::BACKENDS, rrt_dis::arch::by_name, rrt_dis::conformance::check, rrt_dis::conformance::Failure, rrt_dis::mips::Mips, rrt_dis::mips::Mips::r3000, rrt_dis::mips::Mips::r5900, rrt_dis::mips::Mips::canonical, rrt_dis::mips::Mips::decode_word, rrt_dis::mips::Isa, rrt_dis::Symbols, rrt_dis::Symbols::parse, rrt_dis::Symbols::to_text, rrt_dis::Symbols::mark, rrt_dis::Symbols::insert, rrt_dis::Symbols::remove, rrt_dis::Symbols::get, rrt_dis::Symbols::at, rrt_dis::Symbols::locate, rrt_dis::Symbols::range, rrt_dis::Symbols::describe, rrt_dis::Symbols::data_ranges, rrt_dis::Symbol, rrt_dis::Symbol::to_line, rrt_dis::Kind, rrt_dis::Confidence, rrt_dis::symbols::ParseError, rrt_dis::exe::load, rrt_dis::exe::format_of, rrt_dis::exe::Format, rrt_dis::exe::FORMATS, rrt_dis::exe::Loaded, rrt_dis::exe::flatten, rrt_dis::exe::PsxExe, rrt_dis::exe::PsxExe::parse, rrt_dis::exe::PsxExe::as_image, rrt_dis::exe::Elf, rrt_dis::exe::Elf::parse, rrt_dis::exe::Elf::arch, rrt_dis::exe::Segment, rrt_dis::analysis::Image, rrt_dis::analysis::Image::read, rrt_dis::analysis::Program, rrt_dis::analysis::Program::analyze, rrt_dis::analysis::Program::insn, rrt_dis::analysis::Program::insns_of, rrt_dis::analysis::Program::value_before, rrt_dis::analysis::Program::arg_at_call, rrt_dis::analysis::Program::func_of, rrt_dis::analysis::Program::in_code, rrt_dis::analysis::Program::unowned_words, rrt_dis::analysis::Program::strings, rrt_dis::analysis::Found, rrt_dis::analysis::Func, rrt_dis::analysis::JumpTable, rrt_dis::analysis::Ref, rrt_dis::analysis::find_gp, rrt_dis::analysis::REGION_GAP, rrt_dis::listing::Listing, rrt_dis::listing::Listing::program, rrt_dis::listing::Listing::label, rrt_dis::listing::Listing::name, rrt_dis::listing::Listing::function, rrt_dis::listing::Listing::range, rrt_dis::pseudo::Pseudo, rrt_dis::pseudo::Pseudo::new, rrt_dis::pseudo::Pseudo::with_names, rrt_dis::pseudo::Pseudo::function, rrt_dis::pseudo::Pseudo::arity
-worklog: 10, 11, 12
+worklog: 10, 11, 12, 14
 ---
 
 # rrt-dis
@@ -268,8 +268,11 @@ descent, proven on Hot Wheels Turbo Racing, made architecture-neutral.
 | `code`, `code_end` | the code regions |
 
 `value_before(site, reg)` is the constant a register holds before an
-instruction: it walks back through `evaluate`, and knows `gp`.
-`arg_at_call(site, reg)` is the same after a call's delay slot.
+instruction: it walks back through `evaluate`, and knows `gp`. It does not
+walk past a call for a register the calling convention says calls clobber:
+past the call's delay slot, that register is the call's. A saved register
+survives (`a_call_clobbers_what_was_built_before_it`). `arg_at_call(site,
+reg)` is the value at the callee's entry, its delay slot included.
 `strings(min)` returns the strings the code takes the address of.
 `find_gp` evaluates the start-up code's last write to gp before its first
 call, which covers both `lui`/`addiu` and the EE's `move gp, a0`.
@@ -357,7 +360,14 @@ Folded idioms:
 - GCC's divide-by-zero guards around an aborting trap are dropped.
 - A call or jump through a register holding a constant is direct.
 - A call shows as many arguments as the callee reads, from the same
-  liveness pass run on it (`arity`).
+  liveness pass run on it (`arity`). Functions that call each other are
+  solved together: each strongly connected component of the call graph,
+  callees first, as the least fixpoint from no arguments, so the answer
+  does not depend on which is decompiled first
+  (`arity_in_a_call_cycle_does_not_depend_on_order`).
+- A data symbol's memory is its name and its address is `&name`; a
+  function is its name and a string its literal
+  (`a_data_symbols_address_and_its_memory_read_differently`).
 
 General-purpose, special (hi/lo) and flag registers fold. A coprocessor's
 are written as statements where they change (`gte.sz1 = t9;`). An opaque

@@ -659,17 +659,36 @@ impl<'a, A: Arch + ?Sized> Program<'a, A> {
     /// the instructions before it build one (within 160 instructions back,
     /// six steps deep): through [`Arch::evaluate`], `$gp` as [`Program::gp`].
     pub fn value_before(&self, site: u32, reg: Reg) -> Option<u32> {
-        self.const_before(site, 0, reg, 0)
+        self.const_before(site, reg, 0, None)
     }
 
-    fn const_before(&self, site: u32, mut k: u32, reg: Reg, depth: u32) -> Option<u32> {
+    /// `value_before`, where a call that `reg` would have to survive ends
+    /// the search when the calling convention says calls clobber `reg`: a
+    /// value built before a call is not there after it. The call at
+    /// `entry_of` (whose callee's entry is being asked about) does not
+    /// count.
+    fn const_before(&self, site: u32, reg: Reg, depth: u32, entry_of: Option<u32>) -> Option<u32> {
         if Some(reg) == self.arch.global_pointer()
             && let Some(gp) = self.gp
         {
             return Some(gp);
         }
-        let mut later = self.back(site, k).unwrap_or(site);
-        let mut at = later;
+        let clobbered = self.arch.call_conv().is_some_and(|cc| cc.clobbered.contains(&reg));
+        // A call clobbers once its delay slot has run: a write before that
+        // point (the call's delay slot included) is lost if the point lies
+        // at or before `site`.
+        let crosses = |c: u32| {
+            if Some(c) == entry_of {
+                return false;
+            }
+            let Some(i) = self.decode(c).filter(|i| matches!(i.flow, Flow::Call { .. })) else { return false };
+            let next = c + i.size as u32;
+            let point = if i.delay_slot { next + self.decode(next).map_or(i.size, |d| d.size) as u32 } else { next };
+            point <= site
+        };
+        let mut later = site;
+        let mut at = site;
+        let mut k = 0;
         while k < 160 && depth < 6 {
             k += 1;
             at = self.prev(at)?;
@@ -678,11 +697,17 @@ impl<'a, A: Arch + ?Sized> Program<'a, A> {
                 return None;
             }
             later = at;
+            if clobbered
+                && (crosses(at)
+                    || self.prev(at).is_some_and(|c| crosses(c) && self.decode(c).is_some_and(|i| i.delay_slot)))
+            {
+                return None;
+            }
             let insn = self.decode(at)?;
             if !insn.writes.contains(&reg) {
                 continue;
             }
-            return self.arch.evaluate(&insn, &|r| self.const_before(at, 0, r, depth + 1));
+            return self.arch.evaluate(&insn, &|r| self.const_before(at, r, depth + 1, entry_of));
         }
         None
     }
@@ -693,9 +718,10 @@ impl<'a, A: Arch + ?Sized> Program<'a, A> {
         match self.decode(site) {
             Some(i) if i.delay_slot => {
                 let delay = site + i.size as u32;
-                self.value_before(delay + self.decode(delay).map_or(i.size, |d| d.size) as u32, reg)
+                let after = delay + self.decode(delay).map_or(i.size, |d| d.size) as u32;
+                self.const_before(after, reg, 0, Some(site))
             }
-            _ => self.value_before(site, reg),
+            _ => self.const_before(site, reg, 0, Some(site)),
         }
     }
 
@@ -741,9 +767,9 @@ impl<'a, A: Arch + ?Sized> Program<'a, A> {
             && self.adds(&add)
         {
             let add_at = add.addr;
-            bases.extend(add.reads.iter().filter_map(|r| self.const_before(add_at, 0, *r, 0)));
+            bases.extend(add.reads.iter().filter_map(|r| self.const_before(add_at, *r, 0, None)));
         }
-        bases.extend(self.const_before(at, 0, m.base, 0));
+        bases.extend(self.const_before(at, m.base, 0, None));
         let check = (k + 1..k + 24).find_map(|kb| back(kb).and_then(|i| Some((self.arch.switch_bound(&i)?, i))));
         let bound = check.as_ref().map(|(n, _)| *n);
         // The index: the register the bound check compares, unless an
@@ -795,7 +821,7 @@ impl<'a, A: Arch + ?Sized> Program<'a, A> {
                 continue;
             }
             let m = i.mem.filter(|m| !m.store && u32::from(m.size) == psize)?;
-            return Some(self.const_before(at, 0, m.base, 0)?.wrapping_add(m.offset as u32));
+            return Some(self.const_before(at, m.base, 0, None)?.wrapping_add(m.offset as u32));
         }
         None
     }
@@ -815,7 +841,11 @@ impl<'a, A: Arch + ?Sized> Program<'a, A> {
             if !self.funcs.contains_key(&value) {
                 continue;
             }
-            if let Some(base) = self.value_before(pc, m.base) {
+            // A misaligned address is a stale base, not a slot: the store
+            // would fault.
+            if let Some(base) = self.value_before(pc, m.base)
+                && base.wrapping_add(m.offset as u32).is_multiple_of(psize)
+            {
                 slots.entry(base.wrapping_add(m.offset as u32)).or_default().insert(value);
             }
         }
@@ -888,8 +918,8 @@ impl<'a, A: Arch + ?Sized> Program<'a, A> {
             } else if i.mem.is_none()
                 && i.flow == Flow::Next
                 && i.imm().is_some()
-                && let [w] = i.writes[..]
-                && let Some(v) = self.value_before(pc + i.size as u32, w)
+                && i.writes.len() == 1
+                && let Some(v) = self.arch.evaluate(&i, &|r| self.value_before(pc, r))
                 && self.image.contains(v)
                 && i.reads.iter().any(|r| self.value_before(pc, *r) != Some(0))
             {
@@ -1252,6 +1282,43 @@ mod tests {
             assert_eq!(a.slots, b.slots);
             assert!(b.starts.len() > 4, "the variable-length path was taken");
         }
+    }
+
+    /// A register a call clobbers holds nothing from before the call: a
+    /// store through it after the call is no interface slot. A saved
+    /// register survives.
+    #[test]
+    fn a_call_clobbers_what_was_built_before_it() {
+        let words: [u32; 18] = [
+            0x3c03_8001, // 80010000 lui v1, 0x8001     (v1: a call clobbers it)
+            0x3c11_8001, //          lui s1, 0x8001     (s1: saved)
+            0x3c10_8001, //          lui s0, 0x8001
+            0x2610_0040, //          addiu s0, s0, 0x40 (h)
+            0x0c00_400c, //          jal g
+            0x2463_0000, //          addiu v1, v1, 0    (the delay slot: still before the clobber)
+            0xac70_0060, //          sw s0, 0x60(v1)    (v1 is the call's now)
+            0xae30_0064, //          sw s0, 0x64(s1)    (a slot)
+            0x03e0_0008, //          jr ra
+            0,
+            0,
+            0,
+            0x03e0_0008, // 80010030 g: jr ra
+            0,
+            0,
+            0,
+            0x03e0_0008, // 80010040 h: jr ra
+            0,
+        ];
+        let bytes = image(&words);
+        let arch = Mips::r3000();
+        let img = Image { base: 0x8001_0000, bytes: &bytes };
+        let mut syms = Symbols::new();
+        syms.mark(crate::Symbol { kind: Kind::Func, ..crate::Symbol::new("h", 0x8001_0040) });
+        let p = Program::analyze(&arch, img, 0x8001_0000, None, &syms);
+        assert_eq!(p.slots.keys().copied().collect::<Vec<_>>(), [0x8001_0064], "{:x?}", p.slots);
+        assert_eq!(p.value_before(0x8001_0018, Reg::gpr(3)), None, "after the call");
+        assert_eq!(p.value_before(0x8001_0014, Reg::gpr(3)), Some(0x8001_0000), "in the delay slot");
+        assert_eq!(p.arg_at_call(0x8001_0010, Reg::gpr(3)), Some(0x8001_0000), "at the callee's entry");
     }
 
     #[test]
