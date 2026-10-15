@@ -73,6 +73,12 @@ about = "workspace layout, dependencies, CI, how things are run"
 [[area]]
 name  = "test"
 about = "harnesses and fixtures"
+[[area]]
+name  = "emu"
+about = "the originals run for comparison: CPUs, memory, HLE, the oracle"
+[[area]]
+name  = "dis"
+about = "disassembly, symbol files, program analysis, listings"
 
 [[publish]]
 name = "site"
