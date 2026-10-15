@@ -1724,6 +1724,7 @@ version = "0.1.0"
 dependencies = [
  "rrt-app",
  "rrt-audio",
+ "rrt-dis",
  "rrt-disc",
  "rrt-emu",
  "rrt-gpu",
@@ -1763,6 +1764,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "rrt-dis"
+version = "0.1.0"
+dependencies = [
+ "rrt-kit",
+ "rrt-macros",
+]
+
+[[package]]
 name = "rrt-disc"
 version = "0.1.0"
 
@@ -1774,6 +1783,7 @@ version = "0.1.0"
 name = "rrt-emu"
 version = "0.1.0"
 dependencies = [
+ "rrt-dis",
  "rrt-kit",
 ]
 

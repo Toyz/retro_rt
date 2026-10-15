@@ -3,8 +3,9 @@
 //! A game depends on this crate alone and reaches each part through its
 //! module: [`app`] (the loop: implement `app::Game`, run with
 //! `#[rrt::main]`), [`input`], [`gpu`], [`audio`], [`disc`], [`net`],
-//! [`image`], [`kit`], and with the `emu` feature `emu` (the originals run
-//! for comparison, for a port's tests and tools). The wgpu, winit and glam it was built with are re-exported as
+//! [`image`], [`kit`], with the `emu` feature `emu` (the originals run
+//! for comparison, for a port's tests and tools) and with the `dis`
+//! feature `dis` (disassembly, symbol files and program analysis). The wgpu, winit and glam it was built with are re-exported as
 //! [`wgpu`], [`winit`] and [`glam`]: use them, not your own, so the versions
 //! cannot drift. Each part is a feature; `default-features = false` and a
 //! list picks fewer (a tool that only reads discs wants `disc` alone).
@@ -16,6 +17,8 @@
 pub use rrt_app as app;
 #[cfg(feature = "audio")]
 pub use rrt_audio as audio;
+#[cfg(feature = "dis")]
+pub use rrt_dis as dis;
 #[cfg(feature = "disc")]
 pub use rrt_disc as disc;
 #[cfg(feature = "emu")]

@@ -14,6 +14,7 @@ publish = false
 rrt = { path = "crates/rrt" }
 rrt-app = { path = "crates/rrt-app" }
 rrt-audio = { path = "crates/rrt-audio" }
+rrt-dis = { path = "crates/rrt-dis" }
 rrt-disc = { path = "crates/rrt-disc" }
 rrt-emu = { path = "crates/rrt-emu" }
 rrt-gpu = { path = "crates/rrt-gpu" }

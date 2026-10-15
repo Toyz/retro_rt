@@ -12,16 +12,9 @@ use std::fmt;
 
 use crate::bus::Bus;
 
-/// Byte order of a CPU's loads and stores.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Endian {
-    /// Least significant byte first: MIPS as the PlayStations run it, x86,
-    /// ARM as the GBA runs it, the 6502, the Z80.
-    Little,
-    /// Most significant byte first: the 68000, SH-2, SH-4 (as Sega ran them),
-    /// PowerPC.
-    Big,
-}
+/// Byte order of a CPU's loads and stores: the same type the disassembler
+/// uses ([`rrt_dis::Endian`]).
+pub use rrt_dis::Endian;
 
 /// Where a call leaves its return address.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

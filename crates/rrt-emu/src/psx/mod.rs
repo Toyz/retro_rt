@@ -25,7 +25,7 @@ pub use r3000::R3000;
 
 use crate::bus::Memory;
 use crate::heap::Heap;
-use crate::load::PsxExe;
+use crate::load::{Load, PsxExe};
 use crate::machine::Machine;
 
 /// Where [`machine`] puts the stack for calls: near the top of the 2 MB of

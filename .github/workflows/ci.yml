@@ -30,12 +30,14 @@ jobs:
       # gilrs needs libudev, cpal ALSA; lavapipe is the GPU, Xvfb the display.
       # winit loads xkbcommon and the X11 client libraries at run time, so
       # the window test needs them installed, not just linked against.
+      # llvm-mc and llvm-objdump are what rrt-dis's decoder is checked
+      # against, word by word.
       - name: System libraries
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             pkg-config libudev-dev libasound2-dev mesa-vulkan-drivers xvfb \
-            libxkbcommon-x11-0 libx11-xcb1 libxcursor1 libxrandr2 libxi6
+            libxkbcommon-x11-0 libx11-xcb1 libxcursor1 libxrandr2 libxi6 llvm
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -45,12 +47,15 @@ jobs:
 
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets
+      # The rrt-dis command is behind a feature, so --workspace skips it.
+      - run: cargo clippy -p rrt-dis --features cli --all-targets
       - run: xvfb-run -a cargo test --workspace
+      - run: cargo test -p rrt-dis --features cli --test cli
       # Each rrt feature alone, so a tool depending on one part still builds.
       - name: Feature matrix
         run: |
           cargo check -q -p rrt --no-default-features
-          for f in disc net gpu input audio emu app; do
+          for f in disc net gpu input audio emu dis app; do
             cargo check -q -p rrt --no-default-features --features "$f"
           done
       - name: Rustdoc

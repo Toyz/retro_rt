@@ -1,0 +1,27 @@
+[package]
+name = "rrt-dis"
+version = "0.1.0"
+description = "Disassembly for reverse engineering: instructions decoded into structure (operands, control flow, registers read and written) behind an Arch trait, the PS1's R3000A and the PS2's R5900, a symbol table that is a project file (kinds, sizes, confidence, notes), PS-X EXE and ELF parsing, whole-program analysis and listings, and the rrt-dis command (feature cli)."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+# The rrt-dis command. The library itself has no dependencies.
+cli = ["dep:rrt-kit", "dep:rrt-macros"]
+
+[dependencies]
+rrt-kit = { workspace = true, optional = true }
+rrt-macros = { workspace = true, optional = true }
+
+[[bin]]
+name = "rrt-dis"
+path = "src/main.rs"
+required-features = ["cli"]
+
+[[test]]
+name = "cli"
+required-features = ["cli"]
+
+[lints]
+workspace = true

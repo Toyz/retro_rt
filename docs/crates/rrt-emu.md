@@ -2,7 +2,7 @@
 title: rrt-emu, the originals run for comparison
 status: partial
 crates: rrt-emu
-covers: rrt_emu::Cpu, rrt_emu::Cpu::step, rrt_emu::Cpu::abi, rrt_emu::Cpu::in_delay_slot, rrt_emu::Cpu::settle, rrt_emu::Abi, rrt_emu::ReturnAddress, rrt_emu::Endian, rrt_emu::Stop, rrt_emu::Bus, rrt_emu::BusExt, rrt_emu::Bus::canonical, rrt_emu::Memory, rrt_emu::Memory::psx, rrt_emu::Memory::ps2, rrt_emu::Region, rrt_emu::Device, rrt_emu::IoLog, rrt_emu::SharedBus, rrt_emu::Machine, rrt_emu::Machine::call, rrt_emu::Machine::call_recorded, rrt_emu::Machine::hook, rrt_emu::Machine::hook_symbol, rrt_emu::Machine::stub, rrt_emu::Machine::on_syscall, rrt_emu::Machine::check, rrt_emu::Machine::canonical, rrt_emu::machine::Extensions, rrt_emu::Call, rrt_emu::HookResult, rrt_emu::Outcome, rrt_emu::Change, rrt_emu::CheckStats, rrt_emu::Heap, rrt_emu::Symbols, rrt_emu::PsxExe, rrt_emu::Elf, rrt_emu::hle::libc, rrt_emu::hle::install, rrt_emu::psx::R3000, rrt_emu::psx::Gte, rrt_emu::psx::Bios, rrt_emu::psx::machine, rrt_emu::psx::machine_with_exe, rrt_emu::psx::bios::critical_sections, rrt_emu::ee::Ee, rrt_emu::ee::Features, rrt_emu::ee::machine, rrt_emu::ee::machine_with_elf, rrt_emu::ee::kernel::install, rrt_emu::ee::float::add, rrt_emu::ee::float::mul, rrt_emu::ee::float::div, rrt_emu::ee::float::sqrt
+covers: rrt_emu::Cpu, rrt_emu::Cpu::step, rrt_emu::Cpu::abi, rrt_emu::Cpu::in_delay_slot, rrt_emu::Cpu::settle, rrt_emu::Abi, rrt_emu::ReturnAddress, rrt_emu::Endian, rrt_emu::Stop, rrt_emu::Bus, rrt_emu::BusExt, rrt_emu::Bus::canonical, rrt_emu::Memory, rrt_emu::Memory::psx, rrt_emu::Memory::ps2, rrt_emu::Region, rrt_emu::Device, rrt_emu::IoLog, rrt_emu::SharedBus, rrt_emu::Machine, rrt_emu::Machine::call, rrt_emu::Machine::call_recorded, rrt_emu::Machine::hook, rrt_emu::Machine::hook_symbol, rrt_emu::Machine::stub, rrt_emu::Machine::on_syscall, rrt_emu::Machine::check, rrt_emu::Machine::canonical, rrt_emu::machine::Extensions, rrt_emu::Call, rrt_emu::HookResult, rrt_emu::Outcome, rrt_emu::Change, rrt_emu::CheckStats, rrt_emu::Heap, rrt_emu::Symbols, rrt_emu::PsxExe, rrt_emu::Elf, rrt_emu::Segment, rrt_emu::Load, rrt_emu::hle::libc, rrt_emu::hle::install, rrt_emu::psx::R3000, rrt_emu::psx::Gte, rrt_emu::psx::Bios, rrt_emu::psx::machine, rrt_emu::psx::machine_with_exe, rrt_emu::psx::bios::critical_sections, rrt_emu::ee::Ee, rrt_emu::ee::Features, rrt_emu::ee::machine, rrt_emu::ee::machine_with_elf, rrt_emu::ee::kernel::install, rrt_emu::ee::float::add, rrt_emu::ee::float::mul, rrt_emu::ee::float::div, rrt_emu::ee::float::sqrt
 ---
 
 # rrt-emu
@@ -94,10 +94,12 @@ by function, failed with what differed). This is hwtr's lockstep pattern.
 
 ## Loading
 
-`PsxExe::parse`/`load` (the PS-X EXE header and image) and `Elf::parse`/
-`load` (32-bit ELF of either byte order: `PT_LOAD` segments, bss zeroed,
-`.symtab` into `Symbols`). `Symbols::parse` reads a text map (`ADDRESS NAME`
-a line).
+`PsxExe` (the PS-X EXE header and image) and `Elf` (32-bit ELF of either
+byte order: `PT_LOAD` segments, `.symtab` into `Symbols` with kinds and
+sizes) are parsed by `rrt-dis` (`rrt_dis::exe`) and re-exported here; the
+`Load` trait writes either into a `Bus`, an ELF's bss zeroed. `Symbols` and
+`Endian` are `rrt-dis`'s too, so the symbol file a project keeps for its
+disassembly is the one its oracle hooks by name (see [rrt-dis](rrt-dis.md)).
 
 ## PlayStation: `psx`
 

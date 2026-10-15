@@ -31,6 +31,7 @@ rrt = { path = "...", default-features = false, features = ["disc"] }
 | `rrt::image` | [rrt-image](rrt-image.md) | always | yes |
 | `rrt::kit` | [rrt-kit](rrt-kit.md) | always | yes |
 | `rrt::emu` | [rrt-emu](rrt-emu.md) | `emu` | no: a port's tests and tools want it, not its game |
+| `rrt::dis` | [rrt-dis](rrt-dis.md) | `dis` | no: a port's tools want it, not its game |
 | `#[rrt::main]` | [rrt-macros](rrt-macros.md) | `app` | yes |
 
 ## Re-exports

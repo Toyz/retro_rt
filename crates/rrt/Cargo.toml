@@ -20,10 +20,13 @@ net = ["dep:rrt-net"]
 # The originals run for comparison: CPUs, HLE, the oracle. Off by default:
 # a port needs it in its tests and tools, not at play time.
 emu = ["dep:rrt-emu"]
+# Disassembly, symbol files and program analysis, for a port's tools.
+dis = ["dep:rrt-dis"]
 
 [dependencies]
 rrt-app = { workspace = true, optional = true }
 rrt-audio = { workspace = true, optional = true }
+rrt-dis = { workspace = true, optional = true }
 rrt-disc = { workspace = true, optional = true }
 rrt-emu = { workspace = true, optional = true }
 rrt-gpu = { workspace = true, optional = true }

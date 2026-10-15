@@ -24,7 +24,7 @@ pub use r5900::{
 use crate::bus::{Memory, Region};
 use crate::cpu::Cpu;
 use crate::heap::Heap;
-use crate::load::Elf;
+use crate::load::{Elf, Load};
 use crate::machine::Machine;
 
 /// The HLE heap's first byte: 0x0100_0000 (16 MB), piney's

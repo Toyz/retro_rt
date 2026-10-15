@@ -43,6 +43,6 @@ pub mod symbols;
 pub use bus::{Backing, Bus, BusExt, Device, IoLog, Memory, Region, SharedBus};
 pub use cpu::{Abi, Cpu, Endian, ReturnAddress, Stop};
 pub use heap::Heap;
-pub use load::{Elf, PsxExe};
+pub use load::{Elf, Load, PsxExe, Segment};
 pub use machine::{Call, Change, Check, CheckExit, CheckStats, Hook, HookResult, Machine, Outcome, SyscallHook};
 pub use symbols::Symbols;
