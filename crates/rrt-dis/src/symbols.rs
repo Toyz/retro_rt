@@ -286,7 +286,7 @@ impl Symbols {
                 s.lines.push(Line::Text(line.to_string()));
                 continue;
             }
-            match parse_line(line).map_err(&bad)? {
+            match parse_line(line).map_err(bad)? {
                 None => s.lines.push(Line::Text(line.to_string())),
                 Some(sym) => {
                     if let Some(at) = s.by_name.get(&sym.name) {
