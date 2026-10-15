@@ -131,7 +131,7 @@ impl<'p, 'a, A: Arch + ?Sized> Listing<'p, 'a, A> {
                 }
                 continue;
             }
-            match p.image.word(pc, endian).filter(|_| pc.is_multiple_of(4) && pc + 4 <= to) {
+            match p.image.word(pc, endian).filter(|_| pc.is_multiple_of(4) && to.saturating_sub(pc) >= 4) {
                 Some(w) => {
                     let text = match self.label(w) {
                         Some(l) if p.image.contains(w) => format!(".word   {l}"),

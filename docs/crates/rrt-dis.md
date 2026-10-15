@@ -3,7 +3,7 @@ title: rrt-dis, disassembly, symbol files and program analysis
 status: solid
 crates: rrt-dis
 covers: rrt_dis::Arch, rrt_dis::Arch::decode, rrt_dis::Arch::render, rrt_dis::Arch::reg_name, rrt_dis::Arch::evaluate, rrt_dis::Arch::global_pointer, rrt_dis::Arch::stack_pointer, rrt_dis::Arch::switch_bound, rrt_dis::Insn, rrt_dis::Insn::is_valid, rrt_dis::Insn::imm, rrt_dis::Flow, rrt_dis::Flow::falls_through, rrt_dis::Flow::target, rrt_dis::Operand, rrt_dis::Reg, rrt_dis::RegFile, rrt_dis::Mem, rrt_dis::Endian, rrt_dis::mips::Mips, rrt_dis::mips::Mips::r3000, rrt_dis::mips::Mips::r5900, rrt_dis::mips::Mips::canonical, rrt_dis::mips::Mips::decode_word, rrt_dis::mips::Isa, rrt_dis::Symbols, rrt_dis::Symbols::parse, rrt_dis::Symbols::to_text, rrt_dis::Symbols::mark, rrt_dis::Symbols::insert, rrt_dis::Symbols::remove, rrt_dis::Symbols::get, rrt_dis::Symbols::at, rrt_dis::Symbols::locate, rrt_dis::Symbols::describe, rrt_dis::Symbol, rrt_dis::Symbol::to_line, rrt_dis::Kind, rrt_dis::Confidence, rrt_dis::symbols::ParseError, rrt_dis::exe::PsxExe, rrt_dis::exe::PsxExe::parse, rrt_dis::exe::PsxExe::as_image, rrt_dis::exe::Elf, rrt_dis::exe::Elf::parse, rrt_dis::exe::Elf::flatten, rrt_dis::exe::Segment, rrt_dis::analysis::Image, rrt_dis::analysis::Program, rrt_dis::analysis::Program::analyze, rrt_dis::analysis::Program::value_before, rrt_dis::analysis::Program::arg_at_call, rrt_dis::analysis::Program::func_of, rrt_dis::analysis::Program::in_code, rrt_dis::analysis::Program::unowned_words, rrt_dis::analysis::Program::strings, rrt_dis::analysis::Found, rrt_dis::analysis::Func, rrt_dis::analysis::JumpTable, rrt_dis::analysis::Ref, rrt_dis::analysis::find_gp, rrt_dis::analysis::REGION_GAP, rrt_dis::listing::Listing, rrt_dis::listing::Listing::label, rrt_dis::listing::Listing::name, rrt_dis::listing::Listing::function, rrt_dis::listing::Listing::range
-worklog: 10
+worklog: 10, 11
 ---
 
 # rrt-dis
@@ -224,11 +224,48 @@ cargo run -p rrt-dis --features cli -- FILE [options]
 | `--functions` | the functions found that the file does not name, as symbol-file lines to review |
 | `--strings` | the strings the code refers to |
 | `--mark NAME=ADDR[:KIND[:CONFIDENCE]]` | name an address in the symbol file, in place (repeatable) |
+| `--force` | let `--mark` rename a `sure` name, or make a name less sure |
 | `--no-addresses` | listings without addresses and encodings, for diffing |
 
+`--mark` is careful with the project's file:
+
+- Renaming an address keeps everything the mark does not say: kind, size,
+  confidence and note.
+- Replacing a `sure` name, or lowering a name's confidence, needs
+  `--force`.
+- Every mark is checked before anything is written, so one bad mark leaves
+  the file untouched.
+- The new text must parse back to the same symbols, or nothing is written.
+- The file is replaced through a temporary and a rename, so a crash cannot
+  leave it half written.
+
 With no option it lists the whole image. Addresses are hex, with or without
-`0x`. A closed pipe (`| head`) ends it quietly. Tested end to end in
-`tests/cli.rs` (`stats_listing_and_marking`, `raw_bytes_need_a_base`).
+`0x`. A closed pipe (`| head`) ends it quietly. It warns when the entry is outside the image or the image reaches the top
+of the address space. Tested end to end in `tests/cli.rs`:
+
+- `stats_listing_and_marking`
+- `raw_bytes_need_a_base`
+- `marking_keeps_what_it_does_not_say_and_guards_sure_names`
+
+## Hostile input
+
+Executables come from discs and dumps. They may be truncated, corrupted, or
+not what their header says, so nothing here panics on them:
+
+- **Parsers.** A malformed PS-X EXE or ELF is an `Err` naming the problem.
+  An ELF symbol whose name is unreadable, empty or contains whitespace is
+  skipped.
+- **Analysis.** `analyze` cuts the image short 16 bytes below 4 GiB, so
+  stepping through it never wraps. `Image::end` saturates instead of
+  wrapping. Every backward step is checked. Recursion is bounded (six
+  levels for `value_before`, eight for `find_gp`), and so are the seeding
+  rounds (32).
+- **The test.** `tests/robust.rs` (`hostile_input_never_panics`) feeds
+  mutated ELFs and PS-X EXEs, random bytes and random symbol tables
+  through parsing, analysis and listing. It uses images at address 0, at
+  the top of the address space, and anywhere between, and runs in the test
+  profile, where integer overflow panics. It runs 400 rounds by default; it
+  was run for 30,000. `RRT_DIS_ROBUST_ROUNDS` sets the count.
 
 ## Not here
 

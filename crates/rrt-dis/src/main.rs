@@ -98,6 +98,8 @@ struct Cli {
     /// (`func`/`data`/`label`, `guess`/`likely`/`sure`). Repeatable.
     #[arg(value_name = "MARK")]
     mark: Vec<String>,
+    /// Let --mark replace a `sure` name, or make a name less sure.
+    force: bool,
 }
 
 fn main() -> ExitCode {
@@ -149,21 +151,78 @@ fn load(cli: &Cli, data: Vec<u8>) -> Result<Loaded, String> {
     Ok(Loaded { base, bytes: data, entry: base, gp: None, arch: "r3000", symbols: Symbols::new() })
 }
 
-fn parse_mark(m: &str) -> Result<Symbol, String> {
+/// A `--mark`: the name, the address, and the kind and confidence when given.
+struct Mark {
+    name: String,
+    addr: u32,
+    kind: Option<Kind>,
+    confidence: Option<Confidence>,
+}
+
+fn parse_mark(m: &str) -> Result<Mark, String> {
     let (name, rest) = m.split_once('=').ok_or_else(|| format!("--mark {m:?}: want NAME=ADDR[:KIND[:CONFIDENCE]]"))?;
+    if name.is_empty() || name.contains(|c: char| c.is_whitespace() || c == '#') {
+        return Err(format!("--mark {m:?}: a name is one word, without `#`"));
+    }
     let mut parts = rest.split(':');
     let addr = Addr::from_arg(parts.next().unwrap_or(""))?.0;
-    let mut sym = Symbol::new(name, addr);
-    if let Some(k) = parts.next() {
-        sym.kind = k.parse::<Kind>()?;
+    let kind = parts.next().map(str::parse::<Kind>).transpose()?;
+    let confidence = parts.next().map(str::parse::<Confidence>).transpose()?;
+    if parts.next().is_some() {
+        return Err(format!("--mark {m:?}: want NAME=ADDR[:KIND[:CONFIDENCE]]"));
     }
-    if let Some(c) = parts.next() {
-        sym.confidence = Some(c.parse::<Confidence>()?);
+    Ok(Mark { name: name.to_string(), addr, kind, confidence })
+}
+
+/// The symbol `m` leaves at its address. Naming an address that already has
+/// a name keeps what the mark does not say (kind, size, confidence, note);
+/// replacing a `sure` name, or lowering a name's confidence, needs `force`.
+fn apply_mark(symbols: &Symbols, m: Mark, force: bool) -> Result<Symbol, String> {
+    if let Some(other) = symbols.get(&m.name)
+        && other.addr != m.addr
+    {
+        return Err(format!("{} already names 0x{:08x}", m.name, other.addr));
     }
-    if name.is_empty() || name.contains(char::is_whitespace) {
-        return Err(format!("--mark {m:?}: a name is one word"));
+    let Some(old) = symbols.at(m.addr) else {
+        return Ok(Symbol {
+            kind: m.kind.unwrap_or_default(),
+            confidence: m.confidence,
+            ..Symbol::new(m.name, m.addr)
+        });
+    };
+    let confidence = m.confidence.or(old.confidence);
+    if !force {
+        if old.name != m.name && old.confidence == Some(Confidence::Sure) {
+            return Err(format!("0x{:08x} is {}, marked sure; --force to rename it", m.addr, old.name));
+        }
+        if confidence < old.confidence {
+            return Err(format!(
+                "{} at 0x{:08x} is {}; --force to make it less sure",
+                old.name,
+                m.addr,
+                old.confidence.map_or("", Confidence::as_str)
+            ));
+        }
     }
-    Ok(sym)
+    Ok(Symbol { name: m.name, kind: m.kind.unwrap_or(old.kind), confidence, ..old.clone() })
+}
+
+/// Writes the symbol file so that a crash cannot leave it half written, and
+/// only when the text reads back as the same symbols.
+fn save(path: &std::path::Path, symbols: &Symbols) -> Result<(), String> {
+    let text = symbols.to_text();
+    match Symbols::parse(&text) {
+        Ok(back) if back == *symbols => {}
+        Ok(_) => return Err(format!("{}: the edit would not read back the same; nothing written", path.display())),
+        Err(e) => return Err(format!("{}: the edit would not parse ({e}); nothing written", path.display())),
+    }
+    let name = path.file_name().map_or("symbols".into(), |n| n.to_string_lossy().into_owned());
+    let tmp = path.with_file_name(format!(".{name}.rrt-dis-tmp"));
+    std::fs::write(&tmp, text).map_err(|e| format!("{}: {e}", tmp.display()))?;
+    std::fs::rename(&tmp, path).map_err(|e| {
+        let _ = std::fs::remove_file(&tmp);
+        format!("{}: {e}", path.display())
+    })
 }
 
 /// The executable's own symbols with the project's over them: a project
@@ -195,17 +254,18 @@ fn run(cli: Cli) -> Result<(), String> {
     };
     if !cli.mark.is_empty() {
         let path = cli.symbols.as_ref().ok_or("--mark needs the symbol file (-s)")?;
+        // Every mark is checked before the file is touched: all or nothing.
         for m in &cli.mark {
-            let sym = parse_mark(m)?;
-            if let Some(old) = symbols.get(&sym.name)
-                && old.addr != sym.addr
+            let sym = apply_mark(&symbols, parse_mark(m)?, cli.force)?;
+            if let Some(old) = symbols.at(sym.addr)
+                && old.name != sym.name
             {
-                return Err(format!("{} already names 0x{:08x}", sym.name, old.addr));
+                println!("{} renamed to {}", old.name, sym.name);
             }
             println!("{}", sym.to_line());
             symbols.mark(sym);
         }
-        std::fs::write(path, symbols.to_text()).map_err(|e| format!("{}: {e}", path.display()))?;
+        save(path, &symbols)?;
     }
     let listing_asked = !cli.func.is_empty() || cli.from.is_some() || cli.stats || cli.functions || cli.strings;
     if !cli.mark.is_empty() && !listing_asked {
@@ -222,6 +282,15 @@ fn run(cli: Cli) -> Result<(), String> {
     };
     let image = Image { base, bytes: &bytes };
     let entry = cli.entry.map_or(entry, |a| a.0);
+    if u64::from(base) + bytes.len() as u64 > u64::from(u32::MAX) - 16 {
+        eprintln!("rrt-dis: warning: the image runs to the top of the address space; its last bytes are not analysed");
+    }
+    if !image.contains(entry) {
+        eprintln!(
+            "rrt-dis: warning: the entry 0x{entry:08x} is outside the image (0x{base:08x}..0x{:08x})",
+            image.end()
+        );
+    }
     let gp = cli.gp.map(|a| a.0).or(exe_gp).or_else(|| find_gp(&arch, image, entry));
     let program = Program::analyze(&arch, image, entry, gp, &symbols);
     let mut listing = Listing::new(&program, &symbols);

@@ -97,7 +97,8 @@ impl Elf {
             e => return Err(format!("unknown ELF byte order {e}")),
         };
         let get = |at: usize, n: usize| -> Result<u32, String> {
-            let b = data.get(at..at + n).ok_or_else(|| format!("truncated at {at:#x}"))?;
+            let b =
+                at.checked_add(n).and_then(|end| data.get(at..end)).ok_or_else(|| format!("truncated at {at:#x}"))?;
             Ok(match endian {
                 Endian::Little => b.iter().rev().fold(0u32, |a, x| (a << 8) | u32::from(*x)),
                 Endian::Big => b.iter().fold(0u32, |a, x| (a << 8) | u32::from(*x)),
@@ -139,13 +140,20 @@ impl Elf {
             let strtab = data.get(stroff..stroff + strsize).ok_or("string table runs past the file")?;
             for k in 0..size / entsize.max(16) {
                 let e = off + k * entsize.max(16);
-                let (name, value, size, kind, shndx) =
-                    (get(e, 4)? as usize, get(e + 4, 4)?, get(e + 8, 4)?, data[e + 12] & 15, get(e + 14, 2)?);
+                let (name, value, size, info, shndx) =
+                    (get(e, 4)? as usize, get(e + 4, 4)?, get(e + 8, 4)?, get(e + 12, 1)?, get(e + 14, 2)?);
+                let kind = info & 15;
                 if name == 0 || shndx == 0 || kind > 2 {
                     continue;
                 }
-                let end = strtab[name..].iter().position(|b| *b == 0).map_or(strtab.len(), |p| name + p);
-                let name = String::from_utf8_lossy(&strtab[name..end]).into_owned();
+                let rest = strtab.get(name..).ok_or_else(|| format!("symbol {k} names past the string table"))?;
+                let name = String::from_utf8_lossy(&rest[..rest.iter().position(|b| *b == 0).unwrap_or(rest.len())]);
+                // A name the symbol file could not hold (empty, or with
+                // whitespace) is not a name to analyse by.
+                if name.is_empty() || name.contains(char::is_whitespace) {
+                    continue;
+                }
+                let name = name.into_owned();
                 if symbols.get(&name).is_some() || symbols.at(value).is_some() {
                     // Local statics share names across files, and aliases
                     // share addresses: the first one wins.

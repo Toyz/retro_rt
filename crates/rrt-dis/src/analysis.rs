@@ -33,9 +33,10 @@ pub struct Image<'a> {
 }
 
 impl<'a> Image<'a> {
-    /// One past the last address.
+    /// One past the last address, at most `u32::MAX`: bytes that would lie
+    /// past the top of the address space are not part of the image.
     pub fn end(&self) -> u32 {
-        self.base.wrapping_add(self.bytes.len() as u32)
+        u32::try_from(u64::from(self.base) + self.bytes.len() as u64).unwrap_or(u32::MAX)
     }
 
     /// Whether `addr` is inside.
@@ -189,16 +190,24 @@ pub struct Program<'a, A: Arch + ?Sized> {
     sized: BTreeMap<u32, u32>,
 }
 
+/// Bytes [`Program::analyze`] leaves between the image's end and the top of
+/// the address space: an image loaded closer is cut short.
+const HEADROOM: u32 = 16;
+
 /// How far apart two functions can be and still be in one code region.
 /// Wider gaps are data: a linker that interleaves code and data (Metrowerks
 /// on the PS2 puts both in one section) leaves megabytes between.
 pub const REGION_GAP: u32 = 256 << 10;
 
 impl<'a, A: Arch + ?Sized> Program<'a, A> {
-    /// Analyses `image` from `entry`, with `gp` the global pointer's value
+    /// Analyses `image` from `entry` (cut short 16 bytes below 4 GiB), with `gp` the global pointer's value
     /// when known ([`find_gp`]), the symbols marked `func` taken as certain
     /// starts.
     pub fn analyze(arch: &'a A, image: Image<'a>, entry: u32, gp: Option<u32>, symbols: &Symbols) -> Program<'a, A> {
+        // Room above the image for an instruction, its delay slot and the
+        // next, so stepping through it never wraps the address space.
+        let room = (u32::MAX - HEADROOM).saturating_sub(image.base) as usize;
+        let image = Image { base: image.base, bytes: &image.bytes[..image.bytes.len().min(room)] };
         let mut p = Program {
             arch,
             image,
@@ -359,7 +368,7 @@ impl<'a, A: Arch + ?Sized> Program<'a, A> {
         }
         let endian = self.arch.endian();
         let mut pc = self.image.base;
-        while pc + 4 <= self.image.end() {
+        while self.image.end().saturating_sub(pc) >= 4 {
             let w = self.image.word(pc, endian).unwrap();
             if w.is_multiple_of(step) && self.image.contains(w) && self.decode(w).is_some_and(|i| self.opens_frame(&i))
             {
@@ -388,7 +397,9 @@ impl<'a, A: Arch + ?Sized> Program<'a, A> {
                     continue;
                 }
                 if let Some(i) = self.decode(pc)
-                    && (self.opens_frame(&i) || self.owner.contains_key(&(pc - step)) || pc == self.image.base)
+                    && (self.opens_frame(&i)
+                        || pc.checked_sub(step).is_some_and(|b| self.owner.contains_key(&b))
+                        || pc == self.image.base)
                 {
                     out.push((pc, Found::Gap));
                 }
@@ -398,7 +409,7 @@ impl<'a, A: Arch + ?Sized> Program<'a, A> {
             }
         }
         let mut pc = self.image.base;
-        while pc + 4 <= self.image.end() {
+        while self.image.end().saturating_sub(pc) >= 4 {
             if self.in_code(pc) {
                 pc += 4;
                 continue;
@@ -826,7 +837,8 @@ pub fn find_gp<A: Arch + ?Sized>(arch: &A, image: Image<'_>, entry: u32) -> Opti
         if matches!(insn.flow, Flow::Call { .. } | Flow::Jump { .. } | Flow::Return | Flow::Invalid) {
             break;
         }
-        at += step;
+        let Some(next) = at.checked_add(step) else { break };
+        at = next;
     }
     fn value<A: Arch + ?Sized>(
         arch: &A,

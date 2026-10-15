@@ -99,3 +99,39 @@ fn raw_bytes_need_a_base() {
     assert!(out.contains("bfc00000  03e00008  jr      ra"), "{out}");
     std::fs::remove_dir_all(&dir).ok();
 }
+
+#[test]
+fn marking_keeps_what_it_does_not_say_and_guards_sure_names() {
+    let dir = scratch("guard");
+    let syms = dir.join("game.txt");
+    let original = "0x80010000 main func size=0x20 # (sure) the entry\n0x80010020 helper func # (likely) maybe\n";
+    std::fs::write(&syms, original).unwrap();
+    let s = syms.to_str().unwrap();
+    let mark = |args: &[&str]| run(&[&["x", "-s", s], args].concat());
+
+    // A sure name is not renamed by accident, a name not made less sure,
+    // and a bad mark anywhere in the list leaves the file untouched.
+    let (ok, _, err) = mark(&["--mark", "start=0x80010000"]);
+    assert!(!ok && err.contains("is main, marked sure; --force"), "{err}");
+    let (ok, _, err) = mark(&["--mark", "helper=0x80010020:func:guess"]);
+    assert!(!ok && err.contains("--force to make it less sure"), "{err}");
+    let (ok, _, err) = mark(&["--mark", "fine=0x80010040", "--mark", "bad#name=0x80010044"]);
+    assert!(!ok && err.contains("without `#`"), "{err}");
+    let (ok, _, err) = mark(&["--mark", "x=0x80010048:func:sure:extra"]);
+    assert!(!ok && err.contains("want NAME=ADDR"), "{err}");
+    assert_eq!(std::fs::read_to_string(&syms).unwrap(), original, "nothing written");
+
+    // Renaming keeps the kind, size, confidence and note.
+    let (ok, out, err) = mark(&["--mark", "help_draw=0x80010020"]);
+    assert!(ok, "{err}");
+    assert_eq!(out, "helper renamed to help_draw\n0x80010020 help_draw func # (likely) maybe\n");
+    let (ok, out, err) = mark(&["--mark", "start=0x80010000", "--force"]);
+    assert!(ok, "{err}");
+    assert!(out.ends_with("0x80010000 start func size=0x20 # (sure) the entry\n"), "{out}");
+    assert_eq!(
+        std::fs::read_to_string(&syms).unwrap(),
+        "0x80010000 start func size=0x20 # (sure) the entry\n0x80010020 help_draw func # (likely) maybe\n"
+    );
+    assert!(!dir.join(".game.txt.rrt-dis-tmp").exists(), "no temporary left behind");
+    std::fs::remove_dir_all(&dir).ok();
+}
