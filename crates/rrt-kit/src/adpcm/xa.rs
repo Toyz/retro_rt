@@ -23,6 +23,12 @@
 //! each passes a held level at about 0.91 of itself. The history and the
 //! filter ring carry from sector to sector of a stream ([`Decoder`]).
 //!
+//! [`Player`] is the drive's side of a stream: sectors arrive at the disc's
+//! speed, and the decoder takes one only when its output has drained to a
+//! few frames, dropping the rest unread. Streams rely on it: an encoder may
+//! repeat each audio sector to fill the bandwidth, and the hardware plays
+//! each once.
+//!
 //! Not here: 8-bit XA (no game known to these ports uses it; it decodes to
 //! nothing), the drive's volume matrix (the game's `CdMix`) and choosing a
 //! stream's sectors by file and channel - the game's or the disc reader's.
@@ -176,6 +182,81 @@ impl Decoder {
     }
 }
 
+/// Sectors a second at single speed.
+pub const SINGLE_SPEED: u32 = 75;
+/// Sectors a second at double speed, as games stream XA.
+pub const DOUBLE_SPEED: u32 = 150;
+
+/// A stream as the CD-ROM controller's XA decoder plays it while the drive
+/// reads: each audio sector arrives at its disc time, and one arriving while
+/// the decoder's output still holds more than [`Player::LOW_WATER`] frames
+/// is dropped unread. The hardware has no flow control (DuckStation models
+/// it the same way), and streams lean on it: Rugrats' opening repeats each
+/// audio sector about six times to fill double speed's bandwidth, and the
+/// drive plays each once. A stream that interleaves audio as it is consumed
+/// (one sector in eight of 37800 Hz stereo at double speed) never drops.
+///
+/// Ported from rugrats' `movie::XaPlayer`.
+#[derive(Clone, Debug)]
+pub struct Player {
+    decoder: Decoder,
+    sectors_per_second: u32,
+    /// The sound decoded so far at 44100 Hz, from the stream's first sector
+    /// (time before the first audio sector is silence).
+    pub sound: Vec<(i16, i16)>,
+    /// Sectors decoded.
+    pub taken: u32,
+    /// Sectors dropped because the output had not drained.
+    pub dropped: u32,
+}
+
+impl Player {
+    /// Frames the output may still hold when a sector is taken.
+    pub const LOW_WATER: usize = 10;
+
+    /// A player for a stream the drive reads at `sectors_per_second`
+    /// ([`DOUBLE_SPEED`] or [`SINGLE_SPEED`]).
+    pub fn new(sectors_per_second: u32) -> Player {
+        Player {
+            decoder: Decoder::new(),
+            sectors_per_second: sectors_per_second.max(1),
+            sound: Vec::new(),
+            taken: 0,
+            dropped: 0,
+        }
+    }
+
+    /// The audio sector read `at` sectors into the stream, with its
+    /// subheader's coding byte and its audio data: decoded when the output
+    /// has drained, else dropped (leaving the decoder's history as it was).
+    /// Returns whether it was taken.
+    pub fn sector(&mut self, at: u64, coding: Coding, data: &[u8]) -> bool {
+        let now = (at * 44100 / u64::from(self.sectors_per_second)) as usize;
+        if self.sound.len() > now + Self::LOW_WATER {
+            self.dropped += 1;
+            return false;
+        }
+        if self.sound.len() < now {
+            self.sound.resize(now, (0, 0));
+        }
+        self.decoder.decode(coding, data, &mut self.sound);
+        self.taken += 1;
+        true
+    }
+
+    /// The decoded sound.
+    pub fn into_sound(self) -> Vec<(i16, i16)> {
+        self.sound
+    }
+}
+
+impl Default for Player {
+    /// A double-speed player.
+    fn default() -> Player {
+        Player::new(DOUBLE_SPEED)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -266,5 +347,72 @@ mod tests {
         Decoder::new().decode(Coding(0x10), &[0; 0x914], &mut out);
         Decoder::new().decode(Coding(0), &[0; 100], &mut out);
         assert!(out.is_empty());
+    }
+
+    /// 37800 Hz stereo: a sector is 2352 frames at 44100, and double speed
+    /// brings one every 294 frames, so a stream needs one sector in eight.
+    const STEREO_FRAMES: usize = 2016 * 7 / 6;
+    const TICK: usize = 44100 / DOUBLE_SPEED as usize;
+
+    #[test]
+    fn a_stream_of_one_in_eight_plays_every_sector() {
+        let d = sector(0x00, 1, |_| true);
+        let mut p = Player::default();
+        for k in 0..20u64 {
+            assert!(p.sector(k * 8, Coding(1), &d), "sector {k}");
+        }
+        assert_eq!((p.taken, p.dropped), (20, 0));
+        assert_eq!(p.sound.len(), 20 * STEREO_FRAMES);
+    }
+
+    #[test]
+    fn repeated_sectors_play_once_as_the_drive_drops_the_copies() {
+        // Rugrats' opening: four sectors in five are audio, each repeated.
+        let d = sector(0x00, 1, |_| true);
+        let mut p = Player::default();
+        let mut at = 0u64;
+        for _ in 0..400 {
+            for _ in 0..4 {
+                p.sector(at, Coding(1), &d);
+                at += 1;
+            }
+            at += 1;
+        }
+        // The sound keeps pace with the disc: 500 ticks of 294 frames, not
+        // 1600 sectors' worth.
+        assert!(p.taken < 1600 / 6, "{} taken", p.taken);
+        assert_eq!(p.taken + p.dropped, 1600);
+        let disc = at as usize * TICK;
+        assert!(p.sound.len().abs_diff(disc) <= STEREO_FRAMES + TICK, "{} vs {disc}", p.sound.len());
+    }
+
+    #[test]
+    fn a_dropped_sector_leaves_the_history_alone() {
+        let (a, b) = (sector(0x10, 7, |_| true), sector(0x10, 1, |_| true));
+        let mut p = Player::default();
+        assert!(p.sector(0, Coding(0), &a));
+        assert!(!p.sector(1, Coding(0), &b), "too soon: the output holds a sector");
+        let mut alone = Decoder::new();
+        let mut want = Vec::new();
+        alone.decode(Coding(0), &a, &mut want);
+        assert_eq!(p.sound, want);
+        // The next taken sector decodes as if the dropped one never came.
+        let at = (want.len() / TICK) as u64;
+        assert!(p.sector(at, Coding(0), &a));
+        want.resize(at as usize * TICK, (0, 0));
+        alone.decode(Coding(0), &a, &mut want);
+        assert_eq!(p.sound, want);
+    }
+
+    #[test]
+    fn silence_until_the_first_sector_and_single_speed_is_half_as_fast() {
+        let d = sector(0x00, 1, |_| true);
+        let mut p = Player::default();
+        p.sector(10, Coding(1), &d);
+        assert!(p.sound[..10 * TICK].iter().all(|&f| f == (0, 0)));
+        assert_ne!(p.sound[10 * TICK + 100], (0, 0));
+        let mut slow = Player::new(SINGLE_SPEED);
+        slow.sector(10, Coding(1), &d);
+        assert_eq!(slow.into_sound().len(), 10 * 588 + STEREO_FRAMES);
     }
 }
