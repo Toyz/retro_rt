@@ -88,7 +88,9 @@ impl<'p, 'a, A: Arch + ?Sized> Listing<'p, 'a, A> {
         if let Some(l) = self.label(addr) {
             return l;
         }
-        if let Some(sym) = self.symbols.iter().filter(|s| s.contains(addr)).last() {
+        // The nearest symbol whose size covers it, looking back past a few
+        // smaller ones (labels inside a function) rather than every symbol.
+        if let Some(sym) = self.symbols.range(..=addr).rev().take(64).find(|s| s.contains(addr)) {
             return format!("{}+0x{:x}", sym.name, addr - sym.addr);
         }
         format!("0x{addr:08x}")
@@ -282,5 +284,15 @@ mod tests {
         assert!(text.contains("# &str_80010030 \"hi there\""), "{text}");
         assert!(text.contains(".asciz  \"hi there\""), "{text}");
         assert_eq!(l.function(0x8001_0018).unwrap().lines().count(), 3, "label, jr, delay slot");
+
+        // Inside a sized symbol, past a smaller unsized one, the name is the
+        // sized symbol's plus the offset.
+        let mut nested = Symbols::new();
+        nested.mark(Symbol { kind: Kind::Func, size: Some(0x18), ..Symbol::new("outer", 0x8001_0000) });
+        nested.mark(Symbol { kind: Kind::Label, ..Symbol::new("inner", 0x8001_0004) });
+        let l = Listing::new(&p, &nested);
+        assert_eq!(l.name(0x8001_0008), "outer+0x8");
+        assert_eq!(l.name(0x8001_0004), "inner");
+        assert_eq!(l.name(0x8001_0040), "0x80010040");
     }
 }

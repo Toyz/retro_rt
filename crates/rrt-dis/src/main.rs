@@ -8,6 +8,8 @@
 //! rrt-dis bios.bin --base 0xbfc00000 --from 0xbfc00000 --to 0xbfc00400
 //! ```
 
+#![forbid(unsafe_code)]
+
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -207,9 +209,12 @@ fn apply_mark(symbols: &Symbols, m: Mark, force: bool) -> Result<Symbol, String>
     Ok(Symbol { name: m.name, kind: m.kind.unwrap_or(old.kind), confidence, ..old.clone() })
 }
 
-/// Writes the symbol file so that a crash cannot leave it half written, and
-/// only when the text reads back as the same symbols.
-fn save(path: &std::path::Path, symbols: &Symbols) -> Result<(), String> {
+/// Writes the symbol file so that a crash cannot leave it half written, only
+/// when the text reads back as the same symbols, and only when the file is
+/// still what was read (`read`, None when there was no file): an editor or
+/// another tool that saved it meanwhile is not overwritten. The file keeps
+/// its permissions.
+fn save(path: &std::path::Path, symbols: &Symbols, read: Option<&str>) -> Result<(), String> {
     let text = symbols.to_text();
     match Symbols::parse(&text) {
         Ok(back) if back == *symbols => {}
@@ -219,6 +224,14 @@ fn save(path: &std::path::Path, symbols: &Symbols) -> Result<(), String> {
     let name = path.file_name().map_or("symbols".into(), |n| n.to_string_lossy().into_owned());
     let tmp = path.with_file_name(format!(".{name}.rrt-dis-tmp"));
     std::fs::write(&tmp, text).map_err(|e| format!("{}: {e}", tmp.display()))?;
+    let now = std::fs::read_to_string(path).ok();
+    if now.as_deref() != read {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(format!("{}: changed since it was read; nothing written, run again", path.display()));
+    }
+    if let Ok(meta) = std::fs::metadata(path) {
+        let _ = std::fs::set_permissions(&tmp, meta.permissions());
+    }
     std::fs::rename(&tmp, path).map_err(|e| {
         let _ = std::fs::remove_file(&tmp);
         format!("{}: {e}", path.display())
@@ -243,14 +256,16 @@ fn merge(mut own: Symbols, project: &Symbols) -> Symbols {
 }
 
 fn run(cli: Cli) -> Result<(), String> {
-    let mut symbols = match &cli.symbols {
+    let read = match &cli.symbols {
         Some(path) if path.exists() => {
-            let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
-            Symbols::parse(&text).map_err(|e| format!("{}: {e}", path.display()))?
+            Some(std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?)
         }
-        Some(_) if !cli.mark.is_empty() => Symbols::new(),
-        Some(path) => return Err(format!("{}: no such file", path.display())),
-        None => Symbols::new(),
+        Some(path) if cli.mark.is_empty() => return Err(format!("{}: no such file", path.display())),
+        _ => None,
+    };
+    let mut symbols = match (&cli.symbols, &read) {
+        (Some(path), Some(text)) => Symbols::parse(text).map_err(|e| format!("{}: {e}", path.display()))?,
+        _ => Symbols::new(),
     };
     if !cli.mark.is_empty() {
         let path = cli.symbols.as_ref().ok_or("--mark needs the symbol file (-s)")?;
@@ -265,7 +280,7 @@ fn run(cli: Cli) -> Result<(), String> {
             println!("{}", sym.to_line());
             symbols.mark(sym);
         }
-        save(path, &symbols)?;
+        save(path, &symbols, read.as_deref())?;
     }
     let listing_asked = !cli.func.is_empty() || cli.from.is_some() || cli.stats || cli.functions || cli.strings;
     if !cli.mark.is_empty() && !listing_asked {
@@ -370,4 +385,47 @@ fn stats<A: Arch + ?Sized>(p: &Program<'_, A>, l: &Listing<'_, '_, A>) {
         }
     }
     println!("strings      {}", p.strings(4).len());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn save_refuses_a_file_changed_since_it_was_read_and_keeps_permissions() {
+        let dir = std::env::temp_dir().join(format!("rrt-dis-save-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("game.txt");
+        let read = "0x80010000 main func\n";
+        std::fs::write(&path, read).unwrap();
+        let mut symbols = Symbols::parse(read).unwrap();
+        symbols.insert("helper", 0x8001_0020);
+
+        // Someone saved the file in between: it is left as they wrote it.
+        std::fs::write(&path, "0x80010000 main func # (sure)\n").unwrap();
+        let err = save(&path, &symbols, Some(read)).unwrap_err();
+        assert!(err.contains("changed since it was read"), "{err}");
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "0x80010000 main func # (sure)\n");
+        assert!(!dir.join(".game.txt.rrt-dis-tmp").exists());
+
+        // A file that appeared when none was read is not overwritten either.
+        let fresh = dir.join("new.txt");
+        std::fs::write(&fresh, "# mine\n").unwrap();
+        assert!(save(&fresh, &symbols, None).is_err());
+
+        std::fs::write(&path, read).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o640)).unwrap();
+        }
+        save(&path, &symbols, Some(read)).unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "0x80010000 main func\n0x80010020 helper\n");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(std::fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o640);
+        }
+        std::fs::remove_dir_all(&dir).ok();
+    }
 }

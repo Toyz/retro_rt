@@ -22,6 +22,8 @@
 //!
 //! With the `cli` feature this crate is also the `rrt-dis` command.
 
+#![forbid(unsafe_code)]
+
 pub mod analysis;
 pub mod exe;
 pub mod insn;

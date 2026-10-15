@@ -2,7 +2,7 @@
 title: rrt-dis, disassembly, symbol files and program analysis
 status: solid
 crates: rrt-dis
-covers: rrt_dis::Arch, rrt_dis::Arch::decode, rrt_dis::Arch::render, rrt_dis::Arch::reg_name, rrt_dis::Arch::evaluate, rrt_dis::Arch::global_pointer, rrt_dis::Arch::stack_pointer, rrt_dis::Arch::switch_bound, rrt_dis::Insn, rrt_dis::Insn::is_valid, rrt_dis::Insn::imm, rrt_dis::Flow, rrt_dis::Flow::falls_through, rrt_dis::Flow::target, rrt_dis::Operand, rrt_dis::Reg, rrt_dis::RegFile, rrt_dis::Mem, rrt_dis::Endian, rrt_dis::mips::Mips, rrt_dis::mips::Mips::r3000, rrt_dis::mips::Mips::r5900, rrt_dis::mips::Mips::canonical, rrt_dis::mips::Mips::decode_word, rrt_dis::mips::Isa, rrt_dis::Symbols, rrt_dis::Symbols::parse, rrt_dis::Symbols::to_text, rrt_dis::Symbols::mark, rrt_dis::Symbols::insert, rrt_dis::Symbols::remove, rrt_dis::Symbols::get, rrt_dis::Symbols::at, rrt_dis::Symbols::locate, rrt_dis::Symbols::describe, rrt_dis::Symbol, rrt_dis::Symbol::to_line, rrt_dis::Kind, rrt_dis::Confidence, rrt_dis::symbols::ParseError, rrt_dis::exe::PsxExe, rrt_dis::exe::PsxExe::parse, rrt_dis::exe::PsxExe::as_image, rrt_dis::exe::Elf, rrt_dis::exe::Elf::parse, rrt_dis::exe::Elf::flatten, rrt_dis::exe::Segment, rrt_dis::analysis::Image, rrt_dis::analysis::Program, rrt_dis::analysis::Program::analyze, rrt_dis::analysis::Program::value_before, rrt_dis::analysis::Program::arg_at_call, rrt_dis::analysis::Program::func_of, rrt_dis::analysis::Program::in_code, rrt_dis::analysis::Program::unowned_words, rrt_dis::analysis::Program::strings, rrt_dis::analysis::Found, rrt_dis::analysis::Func, rrt_dis::analysis::JumpTable, rrt_dis::analysis::Ref, rrt_dis::analysis::find_gp, rrt_dis::analysis::REGION_GAP, rrt_dis::listing::Listing, rrt_dis::listing::Listing::label, rrt_dis::listing::Listing::name, rrt_dis::listing::Listing::function, rrt_dis::listing::Listing::range
+covers: rrt_dis::Arch, rrt_dis::Arch::decode, rrt_dis::Arch::render, rrt_dis::Arch::reg_name, rrt_dis::Arch::evaluate, rrt_dis::Arch::global_pointer, rrt_dis::Arch::stack_pointer, rrt_dis::Arch::switch_bound, rrt_dis::Insn, rrt_dis::Insn::is_valid, rrt_dis::Insn::imm, rrt_dis::Flow, rrt_dis::Flow::falls_through, rrt_dis::Flow::target, rrt_dis::Operand, rrt_dis::Reg, rrt_dis::RegFile, rrt_dis::Mem, rrt_dis::Endian, rrt_dis::mips::Mips, rrt_dis::mips::Mips::r3000, rrt_dis::mips::Mips::r5900, rrt_dis::mips::Mips::canonical, rrt_dis::mips::Mips::decode_word, rrt_dis::mips::Isa, rrt_dis::Symbols, rrt_dis::Symbols::parse, rrt_dis::Symbols::to_text, rrt_dis::Symbols::mark, rrt_dis::Symbols::insert, rrt_dis::Symbols::remove, rrt_dis::Symbols::get, rrt_dis::Symbols::at, rrt_dis::Symbols::locate, rrt_dis::Symbols::range, rrt_dis::Symbols::describe, rrt_dis::Symbol, rrt_dis::Symbol::to_line, rrt_dis::Kind, rrt_dis::Confidence, rrt_dis::symbols::ParseError, rrt_dis::exe::PsxExe, rrt_dis::exe::PsxExe::parse, rrt_dis::exe::PsxExe::as_image, rrt_dis::exe::Elf, rrt_dis::exe::Elf::parse, rrt_dis::exe::Elf::flatten, rrt_dis::exe::Segment, rrt_dis::analysis::Image, rrt_dis::analysis::Program, rrt_dis::analysis::Program::analyze, rrt_dis::analysis::Program::value_before, rrt_dis::analysis::Program::arg_at_call, rrt_dis::analysis::Program::func_of, rrt_dis::analysis::Program::in_code, rrt_dis::analysis::Program::unowned_words, rrt_dis::analysis::Program::strings, rrt_dis::analysis::Found, rrt_dis::analysis::Func, rrt_dis::analysis::JumpTable, rrt_dis::analysis::Ref, rrt_dis::analysis::find_gp, rrt_dis::analysis::REGION_GAP, rrt_dis::listing::Listing, rrt_dis::listing::Listing::label, rrt_dis::listing::Listing::name, rrt_dis::listing::Listing::function, rrt_dis::listing::Listing::range
 worklog: 10, 11
 ---
 
@@ -105,7 +105,8 @@ is therefore a one-line diff
 `marking_rewrites_one_line_in_place_and_adds_new_ones_at_the_end`).
 
 For lookups: `get` takes a name, `at` an exact address; `locate` finds the
-symbol at or before an address; `describe(addr, slack)` gives `name+0x10`.
+symbol at or before an address; `range(..=addr).rev()` walks back from an
+address; `describe(addr, slack)` gives `name+0x10`.
 rrt-emu uses this same type for `hook_symbol`, so the file a project's
 disassembly uses is the one its oracle hooks by.
 
@@ -237,7 +238,10 @@ cargo run -p rrt-dis --features cli -- FILE [options]
   the file untouched.
 - The new text must parse back to the same symbols, or nothing is written.
 - The file is replaced through a temporary and a rename, so a crash cannot
-  leave it half written.
+  leave it half written. The file keeps its permissions.
+- If the file changed after `rrt-dis` read it (an editor or another tool
+  saved it), nothing is written; run the command again. Unit test:
+  `save_refuses_a_file_changed_since_it_was_read_and_keeps_permissions`.
 
 With no option it lists the whole image. Addresses are hex, with or without
 `0x`. A closed pipe (`| head`) ends it quietly. It warns when the entry is outside the image or the image reaches the top
@@ -249,6 +253,7 @@ of the address space. Tested end to end in `tests/cli.rs`:
 
 ## Hostile input
 
+The crate forbids `unsafe` code, in the library and the command.
 Executables come from discs and dumps. They may be truncated, corrupted, or
 not what their header says, so nothing here panics on them:
 

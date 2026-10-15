@@ -355,6 +355,12 @@ impl Symbols {
         self.by_addr.get(&addr).map(|s| s.name.as_str())
     }
 
+    /// The symbols with addresses in `range`, in address order (reversible:
+    /// `range(..=addr).rev()` walks back from `addr`).
+    pub fn range(&self, range: impl std::ops::RangeBounds<u32>) -> impl DoubleEndedIterator<Item = &Symbol> {
+        self.by_addr.range(range).map(|(_, s)| s)
+    }
+
     /// The nearest symbol at or below `addr`, and how far past it `addr` is:
     /// `func+0x1c` in a trace.
     pub fn locate(&self, addr: u32) -> Option<(&str, u32)> {
@@ -409,6 +415,14 @@ mod tests {
 # Data
 0x800c5bf4 track_archive_names     # (sure) char*[4][3]; Haunted 1 slot is NULL
 ";
+
+    #[test]
+    fn range_walks_back_from_an_address() {
+        let s = Symbols::parse("0x10 a\n0x20 b\n0x30 c\n").unwrap();
+        let back: Vec<&str> = s.range(..=0x2c).rev().map(|s| s.name.as_str()).collect();
+        assert_eq!(back, ["b", "a"]);
+        assert_eq!(s.range(0x20..).count(), 2);
+    }
 
     #[test]
     fn hwtrs_file_reads_and_writes_back_byte_for_byte() {

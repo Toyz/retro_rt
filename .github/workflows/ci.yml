@@ -50,7 +50,7 @@ jobs:
       # The rrt-dis command is behind a feature, so --workspace skips it.
       - run: cargo clippy -p rrt-dis --features cli --all-targets
       - run: xvfb-run -a cargo test --workspace
-      - run: cargo test -p rrt-dis --features cli --test cli
+      - run: cargo test -p rrt-dis --features cli --bins --test cli
       # Each rrt feature alone, so a tool depending on one part still builds.
       - name: Feature matrix
         run: |
