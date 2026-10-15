@@ -8,28 +8,37 @@
 //! - [`Symbols`]: names for addresses as a reverse engineering project keeps
 //!   them - kind, size, how sure, a note - read from and written to the text
 //!   file a project commits.
-//! - [`exe`]: the PS-X EXE and ELF an original shipped as, parsed.
+//! - [`ir`]: what instructions compute, which a backend lifts its
+//!   instructions into ([`Arch::lift`]) for the analysis and the decompiler.
+//! - [`arch`]: the backends by name; [`conformance`]: what a backend must
+//!   satisfy, as a test any backend runs.
+//! - [`exe`]: executables by format (PS-X EXE, ELF), parsed into one shape.
 //! - [`analysis`]: the whole program by recursive descent - functions and
 //!   their extents, calls and callers, jump tables, interface slots, the
 //!   data and strings the code refers to.
 //! - [`listing`]: text listings with names in place of addresses and
 //!   comments saying who calls what and what a load reads.
+//! - [`pseudo`]: a function as C-like pseudo-code.
 //!
 //! Decoding is structural so tools can reason about code, not just print it:
 //! what a function calls, where a register came from, which address a
 //! `lui`/`addiu` pair builds. Nothing outside [`mips`] names an opcode, so
-//! another architecture is one more [`Arch`].
+//! another architecture is one more [`Arch`] (`docs/guides/new-backend.md`).
 //!
 //! With the `cli` feature this crate is also the `rrt-dis` command.
 
 #![forbid(unsafe_code)]
 
 pub mod analysis;
+pub mod arch;
+pub mod conformance;
 pub mod exe;
 pub mod insn;
+pub mod ir;
 pub mod listing;
 pub mod mips;
+pub mod pseudo;
 pub mod symbols;
 
-pub use insn::{Arch, Endian, Flow, Insn, Mem, Operand, Reg, RegFile};
+pub use insn::{Arch, CallConv, Endian, Flow, Insn, Mem, Operand, Reg, RegFile};
 pub use symbols::{Confidence, Kind, Symbol, Symbols};

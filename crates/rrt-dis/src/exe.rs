@@ -1,6 +1,12 @@
 //! Executables as the originals shipped them: the PlayStation's PS-X EXE
 //! and ELF (the PS2's executables, and most consoles' toolchains since).
 //! Parsed only; `rrt_emu::Load` writes them into an emulated machine.
+//!
+//! [`load`] recognises a file by its [`FORMATS`] and gives the same
+//! [`Loaded`] shape for any of them: segments, entry, symbols, and which
+//! backend ([`crate::arch`]) its code is for. A new format (an NE or PE for
+//! 16- or 32-bit Windows, a cartridge header) is a parser plus one
+//! [`Format`] entry.
 
 use crate::analysis::Image;
 use crate::insn::Endian;
@@ -15,8 +21,14 @@ use crate::symbols::{Kind, Symbol, Symbols};
 /// 0x014  u32      gp0     initial $gp (0 when crt0 sets it)
 /// 0x018  u32      t_addr  where the image loads
 /// 0x01c  u32      t_size  its size
+/// 0x020  u32      d_addr  initialised data (usually 0: in the image)
+/// 0x024  u32      d_size
+/// 0x028  u32      b_addr  bss, zeroed by crt0
+/// 0x02c  u32      b_size
 /// 0x030  u32      s_addr  stack base (0: the BIOS default)
 /// 0x034  u32      s_size
+/// 0x04c  ASCII    the region marker ("Sony Computer Entertainment Inc.
+///                 for North America area")
 /// 0x800           the image
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -27,8 +39,20 @@ pub struct PsxExe {
     pub gp0: u32,
     /// Where the image loads.
     pub t_addr: u32,
+    /// Initialised data's address, 0 when it is in the image.
+    pub d_addr: u32,
+    /// Initialised data's size.
+    pub d_size: u32,
+    /// Bss: where crt0 zeroes.
+    pub b_addr: u32,
+    /// Bss's size.
+    pub b_size: u32,
     /// Stack base, 0 for the BIOS's.
     pub s_addr: u32,
+    /// Stack size.
+    pub s_size: u32,
+    /// The region marker at 0x4c, up to its NUL (empty when absent).
+    pub marker: String,
     /// The image.
     pub image: Vec<u8>,
 }
@@ -42,7 +66,22 @@ impl PsxExe {
         let w = |at: usize| u32::from_le_bytes(data[at..at + 4].try_into().unwrap());
         let size = w(0x1c) as usize;
         let image = data.get(0x800..0x800 + size).ok_or("the image is shorter than t_size")?.to_vec();
-        Ok(PsxExe { pc0: w(0x10), gp0: w(0x14), t_addr: w(0x18), s_addr: w(0x30), image })
+        let marker = &data[0x4c..0x800];
+        let marker = &marker[..marker.iter().position(|b| *b == 0).unwrap_or(marker.len())];
+        let marker = String::from_utf8_lossy(marker).trim().to_string();
+        Ok(PsxExe {
+            pc0: w(0x10),
+            gp0: w(0x14),
+            t_addr: w(0x18),
+            d_addr: w(0x20),
+            d_size: w(0x24),
+            b_addr: w(0x28),
+            b_size: w(0x2c),
+            s_addr: w(0x30),
+            s_size: w(0x34),
+            marker,
+            image,
+        })
     }
 
     /// The image as an [`Image`] for analysis.
@@ -72,6 +111,9 @@ pub struct Elf {
     /// `e_machine`: 8 MIPS (PS1 homebrew, PS2), 40 ARM, 42 SuperH, 20
     /// PowerPC.
     pub machine: u16,
+    /// `e_flags`: for MIPS, the ISA level (bits 28-31) and the CPU (bits
+    /// 16-23, 0x92 for the R5900).
+    pub flags: u32,
     /// The entry point.
     pub entry: u32,
     /// `PT_LOAD` segments, in file order.
@@ -105,6 +147,7 @@ impl Elf {
             })
         };
         let machine = get(18, 2)? as u16;
+        let flags = get(36, 4)?;
         let entry = get(24, 4)?;
         let (phoff, shoff) = (get(28, 4)? as usize, get(32, 4)? as usize);
         let (phentsize, phnum) = (get(42, 2)? as usize, get(44, 2)? as usize);
@@ -170,31 +213,141 @@ impl Elf {
                 });
             }
         }
-        Ok(Elf { endian, machine, entry, segments, symbols })
+        Ok(Elf { endian, machine, flags, entry, segments, symbols })
     }
 
-    /// The segments' bytes from the file laid out as one image, from the
-    /// lowest address to the highest end of file data, gaps zero:
-    /// `(base, bytes)`. Bss and segments with no file bytes (overlays loaded
-    /// later) are left out: they hold no code or initial data. Errors when
-    /// the span is over 64 MiB (segments scattered across the address space)
-    /// or no segment has bytes.
+    /// The segments' bytes from the file laid out as one image: see
+    /// [`flatten`].
     pub fn flatten(&self) -> Result<(u32, Vec<u8>), String> {
-        let filled = || self.segments.iter().filter(|s| !s.data.is_empty());
-        let base = filled().map(|s| s.vaddr).min().ok_or("no segment has bytes in the file")?;
-        let end = filled().map(|s| u64::from(s.vaddr) + s.data.len() as u64).max().unwrap_or(0);
-        let span = end - u64::from(base);
-        if span > 64 << 20 {
-            return Err(format!("segments span {span:#x} bytes; analyse them one at a time"));
+        flatten(&self.segments)
+    }
+
+    /// The backend for its code: `r5900` for a MIPS ELF built for the R5900
+    /// or at ISA level III or above, `r3000` for other MIPS; None for other
+    /// machines.
+    pub fn arch(&self) -> Option<&'static str> {
+        const EF_MIPS_MACH_5900: u32 = 0x0092_0000;
+        match self.machine {
+            8 if self.flags & 0x00ff_0000 == EF_MIPS_MACH_5900 || self.flags >> 28 >= 2 => Some("r5900"),
+            8 => Some("r3000"),
+            _ => None,
         }
-        let mut bytes = vec![0u8; span as usize];
-        for s in filled() {
-            let at = (s.vaddr - base) as usize;
-            bytes[at..at + s.data.len()].copy_from_slice(&s.data);
-        }
-        Ok((base, bytes))
     }
 }
+/// Segments' bytes from the file laid out as one image, from the lowest
+/// address to the highest end of file data, gaps zero: `(base, bytes)`. Bss
+/// and segments with no file bytes (overlays loaded later) are left out:
+/// they hold no code or initial data. Errors when the span is over 64 MiB
+/// (segments scattered across the address space) or no segment has bytes.
+pub fn flatten(segments: &[Segment]) -> Result<(u32, Vec<u8>), String> {
+    let filled = || segments.iter().filter(|s| !s.data.is_empty());
+    let base = filled().map(|s| s.vaddr).min().ok_or("no segment has bytes in the file")?;
+    let end = filled().map(|s| u64::from(s.vaddr) + s.data.len() as u64).max().unwrap_or(0);
+    let span = end - u64::from(base);
+    if span > 64 << 20 {
+        return Err(format!("segments span {span:#x} bytes; analyse them one at a time"));
+    }
+    let mut bytes = vec![0u8; span as usize];
+    for s in filled() {
+        let at = (s.vaddr - base) as usize;
+        bytes[at..at + s.data.len()].copy_from_slice(&s.data);
+    }
+    Ok((base, bytes))
+}
+
+/// An executable, whatever its format: what [`load`] gives.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Loaded {
+    /// The format's name, as [`Format::name`].
+    pub format: &'static str,
+    /// The backend its code is for ([`crate::arch::by_name`]), when the file
+    /// says.
+    pub arch: Option<&'static str>,
+    /// The entry point.
+    pub entry: u32,
+    /// The global pointer's value, when the file gives it.
+    pub gp: Option<u32>,
+    /// What is loaded where.
+    pub segments: Vec<Segment>,
+    /// The file's own symbols, empty when it has none.
+    pub symbols: Symbols,
+}
+
+impl Loaded {
+    /// The segments as one image: see [`flatten`].
+    pub fn flatten(&self) -> Result<(u32, Vec<u8>), String> {
+        flatten(&self.segments)
+    }
+}
+
+/// An executable format [`load`] recognises.
+#[derive(Clone, Copy, Debug)]
+pub struct Format {
+    /// Its name: `psx-exe`, `elf`.
+    pub name: &'static str,
+    /// What it is, for a listing.
+    pub about: &'static str,
+    /// Whether `bytes` look like this format (a magic number); cheap, and
+    /// never wrong in the other direction for a file of this format.
+    pub sniff: fn(&[u8]) -> bool,
+    /// Parses `bytes`.
+    pub load: fn(&[u8]) -> Result<Loaded, String>,
+}
+
+/// The formats [`load`] knows, tried in order.
+pub const FORMATS: &[Format] = &[
+    Format {
+        name: "psx-exe",
+        about: "PlayStation executable (PS-X EXE)",
+        sniff: |b| b.starts_with(b"PS-X EXE"),
+        load: |b| {
+            let exe = PsxExe::parse(b)?;
+            let mem_size = exe.image.len() as u32;
+            Ok(Loaded {
+                format: "psx-exe",
+                arch: Some("r3000"),
+                entry: exe.pc0,
+                gp: (exe.gp0 != 0).then_some(exe.gp0),
+                segments: vec![Segment { vaddr: exe.t_addr, data: exe.image, mem_size }],
+                symbols: Symbols::new(),
+            })
+        },
+    },
+    Format {
+        name: "elf",
+        about: "32-bit ELF, either byte order (PS2 executables, homebrew)",
+        sniff: |b| b.starts_with(b"\x7fELF"),
+        load: |b| {
+            let elf = Elf::parse(b)?;
+            Ok(Loaded {
+                format: "elf",
+                arch: elf.arch(),
+                entry: elf.entry,
+                gp: None,
+                symbols: elf.symbols.clone(),
+                segments: elf.segments,
+            })
+        },
+    },
+];
+
+/// The format `bytes` are in, by [`Format::sniff`].
+pub fn format_of(bytes: &[u8]) -> Option<&'static Format> {
+    FORMATS.iter().find(|f| (f.sniff)(bytes))
+}
+
+/// Loads an executable in any of the [`FORMATS`]. Errors when none
+/// recognises it, or when the one that does cannot parse it.
+pub fn load(bytes: &[u8]) -> Result<Loaded, String> {
+    match format_of(bytes) {
+        Some(f) => (f.load)(bytes),
+        None => {
+            let names: Vec<&str> = FORMATS.iter().map(|f| f.name).collect();
+            Err(format!("not a known executable format ({})", names.join(", ")))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -206,9 +359,13 @@ mod tests {
         data[0x10..0x14].copy_from_slice(&0x8001_0000u32.to_le_bytes());
         data[0x18..0x1c].copy_from_slice(&0x8001_0000u32.to_le_bytes());
         data[0x1c..0x20].copy_from_slice(&4u32.to_le_bytes());
+        data[0x28..0x2c].copy_from_slice(&0x800c_4910u32.to_le_bytes());
+        data[0x2c..0x30].copy_from_slice(&0x2_66a0u32.to_le_bytes());
+        data[0x4c..0x4c + 21].copy_from_slice(b"Sony Computer Enterta");
         data[0x800..].copy_from_slice(&0x0800_0000u32.to_le_bytes());
         let exe = PsxExe::parse(&data).unwrap();
         assert_eq!((exe.pc0, exe.t_addr, exe.image.len()), (0x8001_0000, 0x8001_0000, 4));
+        assert_eq!((exe.b_addr, exe.b_size, exe.marker.as_str()), (0x800c_4910, 0x2_66a0, "Sony Computer Enterta"));
         assert_eq!(exe.as_image().word(0x8001_0000, Endian::Little), Some(0x0800_0000));
         assert!(PsxExe::parse(b"nope").is_err());
         data[0x1c] = 0xff;

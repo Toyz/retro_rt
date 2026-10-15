@@ -192,6 +192,8 @@ pub struct Symbols {
     by_addr: BTreeMap<u32, Symbol>,
     by_name: HashMap<String, u32>,
     lines: Vec<Line>,
+    /// `@data START END` ranges: data inside the code.
+    data: Vec<(u32, u32)>,
 }
 
 /// One line's symbol, or None for a comment or blank line.
@@ -208,8 +210,7 @@ fn parse_line(text: &str) -> Result<Option<Symbol>, String> {
     let (Some(addr), Some(name)) = (words.next(), words.next()) else {
         return Err("want ADDRESS NAME".into());
     };
-    let hex = addr.trim_start_matches("0x").trim_start_matches("0X");
-    let addr = u32::from_str_radix(hex, 16).map_err(|_| format!("{addr:?} is not a hex address"))?;
+    let addr = parse_addr(addr).ok_or_else(|| format!("{addr:?} is not a hex address"))?;
     let mut sym = Symbol::new(name, addr);
     for w in words {
         match w {
@@ -240,9 +241,14 @@ fn parse_line(text: &str) -> Result<Option<Symbol>, String> {
     Ok(Some(sym))
 }
 
+/// A hex address, with or without `0x`.
+fn parse_addr(t: &str) -> Option<u32> {
+    u32::from_str_radix(t.trim_start_matches("0x").trim_start_matches("0X"), 16).ok()
+}
+
 impl PartialEq for Symbols {
     fn eq(&self, other: &Symbols) -> bool {
-        self.by_addr == other.by_addr
+        self.by_addr == other.by_addr && self.data == other.data
     }
 }
 
@@ -260,6 +266,26 @@ impl Symbols {
         let mut s = Symbols::new();
         for (i, line) in text.lines().enumerate() {
             let bad = |what: String| ParseError { line: i + 1, what };
+            if let Some(directive) = line.trim_start().strip_prefix('@') {
+                let fields = directive.split('#').next().unwrap_or("");
+                let mut w = fields.split_whitespace();
+                match w.next() {
+                    Some("data") => {
+                        let mut addr = |what: &str| -> Result<u32, ParseError> {
+                            let t = w.next().ok_or_else(|| bad(format!("@data needs {what}")))?;
+                            parse_addr(t).ok_or_else(|| bad(format!("{t:?} is not a hex address")))
+                        };
+                        let (start, end) = (addr("a start")?, addr("an end")?);
+                        if end <= start {
+                            return Err(bad("@data's end is not after its start".into()));
+                        }
+                        s.data.push((start, end));
+                    }
+                    other => return Err(bad(format!("unknown directive @{}", other.unwrap_or("")))),
+                }
+                s.lines.push(Line::Text(line.to_string()));
+                continue;
+            }
             match parse_line(line).map_err(&bad)? {
                 None => s.lines.push(Line::Text(line.to_string())),
                 Some(sym) => {
@@ -276,6 +302,13 @@ impl Symbols {
             }
         }
         Ok(s)
+    }
+
+    /// The `@data START END` ranges: data inside the code (rodata between
+    /// hand-written assembly and the compiler's output, a table in a text
+    /// section), which the analysis keeps out of its functions.
+    pub fn data_ranges(&self) -> &[(u32, u32)] {
+        &self.data
     }
 
     /// The file: untouched lines as read, changed symbols rewritten in place,

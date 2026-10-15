@@ -427,7 +427,7 @@ fn flows_by_class() {
     assert_eq!(f(0x0401_ffff).flow, Flow::Jump { target: Some(0x1000) });
     assert_eq!(f(0x1c40_ffff).flow, Flow::Branch { target: 0x1000, likely: false });
     assert_eq!(f(0x0000_000c).flow, Flow::Trap);
-    assert_eq!(f(0x0000_000d).flow, Flow::Trap);
+    assert_eq!(f(0x0000_000d).flow, Flow::Halt);
     assert_eq!(f(0xffff_ffff).flow, Flow::Invalid);
     for w in [0x03e0_0008, 0x0320_f809, 0x0800_0400, 0x1000_ffff, 0x1c40_ffff] {
         assert!(f(w).delay_slot, "{w:08x}");

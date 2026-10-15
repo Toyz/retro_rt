@@ -60,6 +60,11 @@ impl<'p, 'a, A: Arch + ?Sized> Listing<'p, 'a, A> {
         Listing { program, symbols, by_site, locals, strings, addresses: true }
     }
 
+    /// The program it lists.
+    pub fn program(&self) -> &'p Program<'a, A> {
+        self.program
+    }
+
     /// The label at exactly `addr`: its symbol, else a generated name for
     /// a function, a local target, a string or data the code refers to.
     pub fn label(&self, addr: u32) -> Option<String> {

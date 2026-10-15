@@ -14,10 +14,9 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use rrt_dis::analysis::{Found, Image, Program, find_gp};
-use rrt_dis::exe::{Elf, PsxExe};
 use rrt_dis::listing::Listing;
-use rrt_dis::mips::Mips;
-use rrt_dis::{Arch, Confidence, Kind, Symbol, Symbols};
+use rrt_dis::pseudo::Pseudo;
+use rrt_dis::{Arch, Confidence, Kind, Symbol, Symbols, arch, exe};
 use rrt_kit::cli::{Args, FromArg};
 
 // `print!` and `println!` that end the program quietly when the reader has
@@ -51,20 +50,22 @@ impl FromArg for Addr {
     }
 }
 
-/// Disassembles a PS1 or PS2 executable (PS-X EXE, ELF, or raw bytes with
-/// --base), naming addresses from a project's symbol file.
+/// Disassembles and decompiles an executable (any format `--list` shows, or
+/// raw bytes with --base), naming addresses from a project's symbol file.
 #[derive(rrt_macros::Args)]
 #[args(crate = "rrt_kit::cli")]
 struct Cli {
     /// The executable.
     #[arg(positional, value_name = "FILE")]
-    input: PathBuf,
+    input: Option<PathBuf>,
+    /// List the backends and executable formats, and exit.
+    list: bool,
     /// The project's symbol file. Its `func` symbols are certain function
     /// starts; --mark edits it in place.
     #[arg(short = 's', value_name = "FILE")]
     symbols: Option<PathBuf>,
-    /// The instruction set: r3000 (PS1) or r5900 (PS2). Default: r3000 for
-    /// a PS-X EXE or raw bytes, r5900 for an ELF.
+    /// The backend (`--list` names them). Default: the one the executable
+    /// says; r3000 for raw bytes.
     #[arg(value_name = "CPU")]
     arch: Option<String>,
     /// Where raw bytes load.
@@ -86,6 +87,12 @@ struct Cli {
     /// List up to this address (with --from).
     #[arg(value_name = "ADDR")]
     to: Option<Addr>,
+    /// Decompile one function to pseudo-code: a symbol name or an address.
+    /// Repeatable.
+    #[arg(short = 'p', value_name = "NAME|ADDR")]
+    pseudo: Vec<String>,
+    /// Decompile every function, and say how many there were.
+    pseudo_all: bool,
     /// Print what the analysis found: functions by how, jump tables,
     /// strings, code left unowned.
     stats: bool,
@@ -116,41 +123,40 @@ fn main() -> ExitCode {
 }
 
 /// The input as an image.
-struct Loaded {
+struct Input {
     base: u32,
     bytes: Vec<u8>,
     entry: u32,
-    /// The PS-X EXE's gp0, when set.
+    /// The executable's global pointer, when it gives one.
     gp: Option<u32>,
-    /// The instruction set when --arch does not say.
-    arch: &'static str,
-    /// The ELF's own symbols, empty when stripped or not an ELF.
+    /// The backend when --arch does not say.
+    arch: Option<&'static str>,
+    /// The executable's own symbols, empty when stripped or raw.
     symbols: Symbols,
 }
 
-fn load(cli: &Cli, data: Vec<u8>) -> Result<Loaded, String> {
-    if data.starts_with(b"PS-X EXE") {
-        let exe = PsxExe::parse(&data)?;
-        let gp = (exe.gp0 != 0).then_some(exe.gp0);
-        return Ok(Loaded {
-            base: exe.t_addr,
-            bytes: exe.image,
-            entry: exe.pc0,
-            gp,
-            arch: "r3000",
-            symbols: Symbols::new(),
-        });
+fn load(cli: &Cli, data: Vec<u8>) -> Result<Input, String> {
+    if exe::format_of(&data).is_some() {
+        let l = exe::load(&data)?;
+        let (base, bytes) = l.flatten()?;
+        return Ok(Input { base, bytes, entry: l.entry, gp: l.gp, arch: l.arch, symbols: l.symbols });
     }
-    if data.starts_with(b"\x7fELF") {
-        let elf = Elf::parse(&data)?;
-        if elf.machine != 8 {
-            return Err(format!("ELF machine {} is not MIPS", elf.machine));
-        }
-        let (base, bytes) = elf.flatten()?;
-        return Ok(Loaded { base, bytes, entry: elf.entry, gp: None, arch: "r5900", symbols: elf.symbols });
+    let names: Vec<&str> = exe::FORMATS.iter().map(|f| f.name).collect();
+    let base =
+        cli.base.ok_or_else(|| format!("not a known format ({}): give --base for raw bytes", names.join(", ")))?.0;
+    Ok(Input { base, bytes: data, entry: base, gp: None, arch: Some("r3000"), symbols: Symbols::new() })
+}
+
+fn list() {
+    println!("backends (--arch):");
+    for b in arch::BACKENDS {
+        let aliases = if b.aliases.is_empty() { String::new() } else { format!(" ({})", b.aliases.join(", ")) };
+        println!("  {:<8} {}{aliases}", b.name, b.about);
     }
-    let base = cli.base.ok_or("not a PS-X EXE or ELF: give --base for raw bytes")?.0;
-    Ok(Loaded { base, bytes: data, entry: base, gp: None, arch: "r3000", symbols: Symbols::new() })
+    println!("formats:");
+    for f in exe::FORMATS {
+        println!("  {:<8} {}", f.name, f.about);
+    }
 }
 
 /// A `--mark`: the name, the address, and the kind and confidence when given.
@@ -256,6 +262,10 @@ fn merge(mut own: Symbols, project: &Symbols) -> Symbols {
 }
 
 fn run(cli: Cli) -> Result<(), String> {
+    if cli.list {
+        list();
+        return Ok(());
+    }
     let read = match &cli.symbols {
         Some(path) if path.exists() => {
             Some(std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?)
@@ -282,19 +292,28 @@ fn run(cli: Cli) -> Result<(), String> {
         }
         save(path, &symbols, read.as_deref())?;
     }
-    let listing_asked = !cli.func.is_empty() || cli.from.is_some() || cli.stats || cli.functions || cli.strings;
+    let listing_asked = !cli.func.is_empty()
+        || !cli.pseudo.is_empty()
+        || cli.pseudo_all
+        || cli.from.is_some()
+        || cli.stats
+        || cli.functions
+        || cli.strings;
     if !cli.mark.is_empty() && !listing_asked {
         return Ok(());
     }
 
-    let data = std::fs::read(&cli.input).map_err(|e| format!("{}: {e}", cli.input.display()))?;
-    let Loaded { base, bytes, entry, gp: exe_gp, arch: default_arch, symbols: own } = load(&cli, data)?;
+    let input = cli.input.as_ref().ok_or("no executable given (FILE)")?;
+    let data = std::fs::read(input).map_err(|e| format!("{}: {e}", input.display()))?;
+    let Input { base, bytes, entry, gp: exe_gp, arch: default_arch, symbols: own } = load(&cli, data)?;
     let symbols = merge(own, &symbols);
-    let arch = match cli.arch.as_deref().unwrap_or(default_arch) {
-        "r3000" | "ps1" | "psx" => Mips::r3000(),
-        "r5900" | "ps2" | "ee" => Mips::r5900(),
-        other => return Err(format!("--arch {other:?}: want r3000 or r5900")),
-    };
+    let name = cli.arch.as_deref().or(default_arch).ok_or("the executable does not say its CPU: give --arch")?;
+    let backend = arch::by_name(name).ok_or_else(|| {
+        let names: Vec<&str> = arch::BACKENDS.iter().map(|b| b.name).collect();
+        format!("--arch {name:?}: want one of {}", names.join(", "))
+    })?;
+    let arch = (backend.make)();
+    let arch: &dyn Arch = arch.as_ref();
     let image = Image { base, bytes: &bytes };
     let entry = cli.entry.map_or(entry, |a| a.0);
     if u64::from(base) + bytes.len() as u64 > u64::from(u32::MAX) - 16 {
@@ -306,8 +325,8 @@ fn run(cli: Cli) -> Result<(), String> {
             image.end()
         );
     }
-    let gp = cli.gp.map(|a| a.0).or(exe_gp).or_else(|| find_gp(&arch, image, entry));
-    let program = Program::analyze(&arch, image, entry, gp, &symbols);
+    let gp = cli.gp.map(|a| a.0).or(exe_gp).or_else(|| find_gp(arch, image, entry));
+    let program = Program::analyze(arch, image, entry, gp, &symbols);
     let mut listing = Listing::new(&program, &symbols);
     listing.addresses = !cli.no_addresses;
 
@@ -334,16 +353,30 @@ fn run(cli: Cli) -> Result<(), String> {
             println!("0x{addr:08x} {s:?}  # {} ref{}", sites.len(), if sites.len() == 1 { "" } else { "s" });
         }
     }
-    for f in &cli.func {
+    let func_at = |f: &str| -> Result<u32, String> {
         let addr = symbols
             .addr(f)
             .or_else(|| Addr::from_arg(f).ok().map(|a| a.0))
             .ok_or_else(|| format!("no symbol {f:?}"))?;
-        let start = match program.funcs.get(&addr) {
-            Some(_) => addr,
-            None => program.func_of(addr).map(|g| g.start).ok_or_else(|| format!("no function at 0x{addr:08x}"))?,
-        };
-        print!("{}", listing.function(start).unwrap_or_default());
+        match program.funcs.get(&addr) {
+            Some(_) => Ok(addr),
+            None => program.func_of(addr).map(|g| g.start).ok_or_else(|| format!("no function at 0x{addr:08x}")),
+        }
+    };
+    for f in &cli.func {
+        print!("{}", listing.function(func_at(f)?).unwrap_or_default());
+    }
+    if !cli.pseudo.is_empty() || cli.pseudo_all {
+        let pseudo = Pseudo::new(&listing);
+        for f in &cli.pseudo {
+            print!("{}", pseudo.function(func_at(f)?).unwrap_or_default());
+        }
+        if cli.pseudo_all {
+            for &start in program.funcs.keys() {
+                print!("{}", pseudo.function(start).unwrap_or_default());
+            }
+            println!("// {} functions decompiled", program.funcs.len());
+        }
     }
     match (cli.from, cli.to) {
         (Some(from), Some(to)) => print!("{}", listing.range(from.0, to.0)),

@@ -38,7 +38,19 @@ mod tests {
 
     #[test]
     fn a_psx_exe_loads_at_t_addr() {
-        let exe = PsxExe { pc0: 0x8001_0000, gp0: 0, t_addr: 0x8001_0000, s_addr: 0, image: vec![0, 0, 0, 8] };
+        let exe = PsxExe {
+            pc0: 0x8001_0000,
+            gp0: 0,
+            t_addr: 0x8001_0000,
+            d_addr: 0,
+            d_size: 0,
+            b_addr: 0,
+            b_size: 0,
+            s_addr: 0,
+            s_size: 0,
+            marker: String::new(),
+            image: vec![0, 0, 0, 8],
+        };
         let mut m = Memory::psx();
         exe.load(&mut m).unwrap();
         assert_eq!(m.read_u32(0x8001_0000), Ok(0x0800_0000));
@@ -49,6 +61,7 @@ mod tests {
         let elf = Elf {
             endian: Endian::Little,
             machine: 8,
+            flags: 0,
             entry: 0x0010_0000,
             segments: vec![Segment { vaddr: 0x0010_0000, data: vec![1, 2, 3, 4], mem_size: 8 }],
             symbols: Symbols::new(),

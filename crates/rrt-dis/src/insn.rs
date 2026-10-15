@@ -1,4 +1,7 @@
-//! A decoded instruction, the same shape for every instruction set.
+//! A decoded instruction, the same shape for every instruction set, and the
+//! [`Arch`] trait a backend implements.
+
+use crate::ir::{BinOp, Effect, Expr, Lifted};
 
 /// Byte order of an instruction set's code and data.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -12,8 +15,10 @@ pub enum Endian {
 }
 
 /// Which register file a register is in. What each holds is the
-/// architecture's; [`Arch::reg_name`] names them.
+/// architecture's; [`Arch::reg_name`] names them. More files may come with
+/// more backends, so a match on it needs a wildcard arm.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[non_exhaustive]
 pub enum RegFile {
     /// General-purpose registers.
     Gpr,
@@ -33,6 +38,11 @@ pub enum RegFile {
     VecFloat,
     /// Vector integer registers (the PS2 VU0's vi0-vi15).
     VecInt,
+    /// Condition flags, one register per flag (x86's carry, zero, sign,
+    /// overflow; the 68000's condition codes).
+    Flags,
+    /// Segment registers (x86 real and protected mode).
+    Segment,
 }
 
 /// A register: its file and number within it.
@@ -81,8 +91,10 @@ pub enum Operand {
     Code(u32),
 }
 
-/// What an instruction does to control flow.
+/// What an instruction does to control flow. More kinds may come with more
+/// backends, so a match on it needs a wildcard arm.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Flow {
     /// Falls through to the next instruction.
     Next,
@@ -109,18 +121,23 @@ pub enum Flow {
     },
     /// A return to the caller (MIPS `jr ra`).
     Return,
-    /// A trap to the system (`syscall`, `break`).
+    /// A trap to the system that comes back (`syscall`, the conditional
+    /// traps).
     Trap,
+    /// A trap that does not come back: the program stops (MIPS `break`, as
+    /// compilers emit it after a call that does not return or to abort).
+    /// The walk ends here.
+    Halt,
     /// Not a valid instruction.
     Invalid,
 }
 
 impl Flow {
     /// Whether control can continue to the next instruction (after any delay
-    /// slot): everything but an unconditional jump, a return and an invalid
-    /// word. A call continues; a trap is assumed to return.
+    /// slot): everything but an unconditional jump, a return, a halt and
+    /// an invalid word. A call continues; a [`Flow::Trap`] returns.
     pub fn falls_through(self) -> bool {
-        !matches!(self, Flow::Jump { .. } | Flow::Return | Flow::Invalid)
+        !matches!(self, Flow::Jump { .. } | Flow::Return | Flow::Halt | Flow::Invalid)
     }
 
     /// The code address the instruction names, if any.
@@ -177,7 +194,41 @@ impl Insn {
     }
 }
 
-/// An instruction set: how to decode it and how to print it.
+/// A calling convention: which registers carry what across a call. The
+/// decompiler counts a callee's arguments, knows what a call may change, and
+/// recognises a prologue's saves by it; the analysis takes the stack and
+/// global pointers from it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CallConv {
+    /// Registers that carry arguments, in order (MIPS a0-a3). Empty for a
+    /// convention that passes everything on the stack.
+    pub args: &'static [Reg],
+    /// Registers that carry results, the main one first (MIPS v0, v1).
+    pub results: &'static [Reg],
+    /// Registers a callee preserves (MIPS s0-s7, fp, ra).
+    pub saved: &'static [Reg],
+    /// Registers a call may change (MIPS at, v0-v1, a0-a3, t0-t9, hi, lo).
+    pub clobbered: &'static [Reg],
+    /// The stack pointer.
+    pub stack_pointer: Option<Reg>,
+    /// The register small data is addressed from (MIPS gp).
+    pub global_pointer: Option<Reg>,
+    /// Where a call leaves its return address, if in a register (MIPS ra).
+    pub return_address: Option<Reg>,
+}
+
+/// An instruction set: how to decode it, print it and say what it does.
+///
+/// A backend implements the required methods ([`name`](Arch::name),
+/// [`endian`](Arch::endian), [`align`](Arch::align),
+/// [`decode`](Arch::decode), [`reg_name`](Arch::reg_name),
+/// [`render`](Arch::render)) for disassembly. [`lift`](Arch::lift) and
+/// [`call_conv`](Arch::call_conv) add the analysis's constant tracking and
+/// the decompiler: [`evaluate`](Arch::evaluate),
+/// [`switch_bound`](Arch::switch_bound), [`stack_pointer`](Arch::stack_pointer)
+/// and [`global_pointer`](Arch::global_pointer) are derived from them unless
+/// overridden. `docs/guides/new-backend.md` walks through adding one, and
+/// [`crate::conformance::check`] tests one.
 pub trait Arch {
     /// Its name: "R3000A", "R5900".
     fn name(&self) -> &'static str;
@@ -196,40 +247,82 @@ pub trait Arch {
     /// A register's name: "v0", "f12", "vf3".
     fn reg_name(&self, reg: Reg) -> String;
 
+    /// A register as pseudo-code writes it: by default its
+    /// [`reg_name`](Arch::reg_name). A backend prefixes a coprocessor's
+    /// registers so they read as the device they are (MIPS: `gte.sz1`).
+    fn var_name(&self, reg: Reg) -> String {
+        self.reg_name(reg)
+    }
+
     /// The instruction as text: mnemonic (or a pseudo-op), then operands,
     /// with `label` asked for a name for every code or data address it
     /// writes (None prints the address in hex).
     fn render(&self, insn: &Insn, label: &dyn Fn(u32) -> Option<String>) -> String;
 
-    /// The value `insn` writes to its first written register, when it can
-    /// be computed from constants and from registers whose values `known`
-    /// gives (MIPS: `lui`, `addiu`/`addi`, `ori`, `addu`/`or` of known
-    /// registers, `move`). The analysis uses it to resolve addresses built
-    /// over several instructions. None when not computable, and by default.
-    fn evaluate(&self, insn: &Insn, known: &dyn Fn(Reg) -> Option<u32>) -> Option<u32> {
-        let _ = (insn, known);
-        None
-    }
-
-    /// The register that holds the global pointer, if the architecture's
-    /// calling convention has one (MIPS `gp`).
-    fn global_pointer(&self) -> Option<Reg> {
-        None
-    }
-
-    /// The stack pointer register (MIPS `sp`): an instruction lowering it
-    /// by a constant opens a function's frame, which the analysis takes as a
-    /// sign of a function's start.
-    fn stack_pointer(&self) -> Option<Reg> {
-        None
-    }
-
-    /// When `insn` compares a switch's index against a constant bound
-    /// (MIPS `sltiu t, idx, N`), that bound: how many entries a jump table
-    /// behind it has at most.
-    fn switch_bound(&self, insn: &Insn) -> Option<u32> {
+    /// What `insn` computes, as [`Effect`]s over [`Expr`]s, with its branch
+    /// condition and indirect target. None for an instruction the backend
+    /// does not lift: the decompiler prints it as a comment and takes the
+    /// registers it writes as unknown. By default nothing is lifted.
+    fn lift(&self, insn: &Insn) -> Option<Lifted> {
         let _ = insn;
         None
+    }
+
+    /// The calling convention, if the backend describes one.
+    fn call_conv(&self) -> Option<CallConv> {
+        None
+    }
+
+    /// The size of every instruction when they are all one size (MIPS: 4);
+    /// None for a variable-length set (x86), whose analysis then steps back
+    /// through the instructions it has decoded rather than by arithmetic.
+    fn fixed_size(&self) -> Option<u32> {
+        None
+    }
+
+    /// Bytes in a code or data pointer: what a jump table's entries and a
+    /// function pointer slot hold (4; 2 for 16-bit code).
+    fn pointer_size(&self) -> u32 {
+        4
+    }
+
+    /// The value `insn` writes, when it writes one register and that can be
+    /// computed from constants and from registers whose values `known`
+    /// gives. The analysis uses it to follow addresses built over several
+    /// instructions. By default, from [`Arch::lift`]: an instruction lifted
+    /// to a single [`Effect::Set`] is evaluated.
+    fn evaluate(&self, insn: &Insn, known: &dyn Fn(Reg) -> Option<u32>) -> Option<u32> {
+        match self.lift(insn)?.effects.as_slice() {
+            [Effect::Set(_, e)] => e.eval(known),
+            _ => None,
+        }
+    }
+
+    /// The register that holds the global pointer: by default the calling
+    /// convention's.
+    fn global_pointer(&self) -> Option<Reg> {
+        self.call_conv()?.global_pointer
+    }
+
+    /// The stack pointer register: by default the calling convention's. An
+    /// instruction lowering it by a constant opens a function's frame,
+    /// which the analysis takes as a sign of a function's start.
+    fn stack_pointer(&self) -> Option<Reg> {
+        self.call_conv()?.stack_pointer
+    }
+
+    /// When `insn` compares a switch's index against a constant bound, that
+    /// bound: how many entries a jump table behind it has at most. By
+    /// default, from [`Arch::lift`]: a single set to an unsigned
+    /// less-than against a constant (MIPS `sltiu t, idx, N`).
+    fn switch_bound(&self, insn: &Insn) -> Option<u32> {
+        match self.lift(insn)?.effects.as_slice() {
+            [Effect::Set(_, Expr::Bin(BinOp::Ltu, _, n))] => match n.as_ref() {
+                Expr::Const(n) => Some(*n as u32),
+                _ => None,
+            },
+            _ => None,
+        }
     }
 }
 
@@ -245,5 +338,6 @@ mod tests {
         assert_eq!(Flow::Call { target: Some(0x100) }.target(), Some(0x100));
         assert_eq!(Flow::Jump { target: None }.target(), None);
         assert_eq!(Flow::Trap.target(), None);
+        assert!(Flow::Trap.falls_through() && !Flow::Halt.falls_through());
     }
 }

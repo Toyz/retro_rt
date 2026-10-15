@@ -1,6 +1,6 @@
 //! Hostile input never panics: mutated ELFs and PS-X EXEs, images at the
 //! bottom and the top of the address space, random bytes and random symbol
-//! files, through parsing, analysis and listing. Run in the test profile,
+//! files, through parsing, analysis, listing and decompiling. Run in the test profile,
 //! where integer overflow panics, so a wrap is caught as well as an index.
 //! `RRT_DIS_ROBUST_ROUNDS` raises the round count (default 400).
 
@@ -8,6 +8,7 @@ use rrt_dis::analysis::{Image, Program, find_gp};
 use rrt_dis::exe::{Elf, PsxExe};
 use rrt_dis::listing::Listing;
 use rrt_dis::mips::Mips;
+use rrt_dis::pseudo::Pseudo;
 use rrt_dis::{Kind, Symbol, Symbols};
 
 /// xorshift64: reproducible, no dependency.
@@ -124,8 +125,10 @@ fn analyse(base: u32, bytes: &[u8], entry: u32, symbols: &Symbols) {
         let p = Program::analyze(&arch, image, entry, gp, symbols);
         let listing = Listing::new(&p, symbols);
         let _ = listing.range(base, base.saturating_add(0x200));
+        let pseudo = Pseudo::new(&listing);
         for &start in p.funcs.keys() {
             let _ = listing.function(start);
+            let _ = pseudo.function(start);
         }
         let _ = (p.strings(4), p.unowned_words());
     }

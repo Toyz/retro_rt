@@ -76,13 +76,15 @@
 
 mod decode;
 mod gte;
+mod lift;
 mod regs;
 mod vu0;
 
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 
-use crate::insn::{Arch, Endian, Flow, Insn, Mem, Operand, Reg, RegFile};
+use crate::insn::{Arch, CallConv, Endian, Flow, Insn, Mem, Operand, Reg, RegFile};
+use crate::ir::Lifted;
 use decode::{A, Def, Kind, T};
 use regs::*;
 
@@ -247,6 +249,44 @@ impl Mips {
         }
     }
 }
+
+const fn gprs<const N: usize>(from: [u8; N]) -> [Reg; N] {
+    let mut out = [Reg::gpr(0); N];
+    let mut k = 0;
+    while k < N {
+        out[k] = Reg::gpr(from[k]);
+        k += 1;
+    }
+    out
+}
+
+const ARGS_O32: [Reg; 4] = gprs([4, 5, 6, 7]);
+const ARGS_EABI: [Reg; 8] = gprs([4, 5, 6, 7, 8, 9, 10, 11]);
+const RESULTS: [Reg; 2] = gprs([2, 3]);
+const SAVED: [Reg; 10] = gprs([16, 17, 18, 19, 20, 21, 22, 23, 30, 31]);
+const CLOBBERED: [Reg; 21] = {
+    let g = gprs([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 24, 25]);
+    let mut out = [HI; 21];
+    let mut k = 0;
+    while k < 17 {
+        out[k] = g[k];
+        k += 1;
+    }
+    out[17] = HI;
+    out[18] = LO;
+    out[19] = HI1;
+    out[20] = LO1;
+    out
+};
+const EE_CONV: CallConv = CallConv {
+    args: &ARGS_EABI,
+    results: &RESULTS,
+    saved: &SAVED,
+    clobbered: &CLOBBERED,
+    stack_pointer: Some(Reg::gpr(29)),
+    global_pointer: Some(Reg::gpr(28)),
+    return_address: Some(Reg::gpr(31)),
+};
 
 /// The dest mask's letters, x first (bit 24).
 const XYZW: [&str; 4] = ["x", "y", "z", "w"];
@@ -423,6 +463,9 @@ fn flow(def: &Def, w: u32, addr: u32) -> (Flow, bool) {
     let (rs, rt, rd, _) = fields(w);
     match def.kind {
         Kind::Plain => (Flow::Next, false),
+        // break stops the program: compilers put it after a call that does
+        // not return and behind divide-by-zero checks.
+        Kind::Trap if def.mn == "break" => (Flow::Halt, false),
         Kind::Trap => (Flow::Trap, false),
         Kind::Eret => (Flow::Return, false),
         Kind::Branch { likely } => {
@@ -492,6 +535,16 @@ impl Arch for Mips {
             RegFile::VecFloat => format!("vf{i}"),
             RegFile::VecInt => format!("vi{i}"),
             file => format!("{file:?}{i}").to_lowercase(),
+        }
+    }
+
+    /// The PS1's GTE registers as `gte.name` and COP0's as `cop0.name`, as
+    /// rugrats' decompiler wrote them; the rest as [`Arch::reg_name`].
+    fn var_name(&self, reg: Reg) -> String {
+        match reg.file {
+            RegFile::Cop2Data | RegFile::Cop2Ctrl if self.isa == Isa::R3000 => format!("gte.{}", self.reg_name(reg)),
+            RegFile::Cop0 => format!("cop0.{}", self.reg_name(reg)),
+            _ => self.reg_name(reg),
         }
     }
 
@@ -565,40 +618,20 @@ impl Arch for Mips {
         if ops.is_empty() { mn.to_string() } else { format!("{mn:<7} {}", ops.join(", ")) }
     }
 
-    /// The value written to the destination GPR of `lui`, `addiu`/`addi`/
-    /// `daddiu`/`daddi`, `ori`, `addu`/`add`/`daddu`/`dadd`, `or` (so
-    /// `move` and `li`), `subu`/`sub`/`dsubu`/`dsub` and `sll`, on the low
-    /// 32 bits with wrapping. `zero` is known as 0 without asking `known`.
-    fn evaluate(&self, insn: &Insn, known: &dyn Fn(Reg) -> Option<u32>) -> Option<u32> {
-        if !insn.is_valid() || !insn.writes.iter().any(|r| r.file == RegFile::Gpr) {
-            return None;
-        }
-        let w = insn.word;
-        let (rs, rt, _, sa) = fields(w);
-        let get = |i: u32| if i == 0 { Some(0) } else { known(Reg::gpr(i as u8)) };
-        let imm = simm(w) as u32;
-        Some(match insn.mnemonic {
-            "lui" => (w & 0xffff) << 16,
-            "addiu" | "addi" | "daddiu" | "daddi" => get(rs)?.wrapping_add(imm),
-            "ori" => get(rs)? | (w & 0xffff),
-            "addu" | "add" | "daddu" | "dadd" => get(rs)?.wrapping_add(get(rt)?),
-            "or" => get(rs)? | get(rt)?,
-            "subu" | "sub" | "dsubu" | "dsub" => get(rs)?.wrapping_sub(get(rt)?),
-            "sll" => get(rt)? << sa,
-            _ => return None,
+    fn lift(&self, insn: &Insn) -> Option<Lifted> {
+        lift::lift(self, insn)
+    }
+
+    /// o32 on the PS1 (arguments in a0-a3); on the PS2 the EE's EABI, which
+    /// passes eight in a0-a3 and t0-t3.
+    fn call_conv(&self) -> Option<CallConv> {
+        Some(match self.isa {
+            Isa::R3000 => CallConv { args: &ARGS_O32, ..EE_CONV },
+            Isa::R5900 => EE_CONV,
         })
     }
 
-    fn global_pointer(&self) -> Option<Reg> {
-        Some(Reg::gpr(28))
-    }
-
-    fn stack_pointer(&self) -> Option<Reg> {
-        Some(Reg::gpr(29))
-    }
-
-    /// `sltiu t, s, N`'s N, sign-extended to 32 bits as the compare uses it.
-    fn switch_bound(&self, insn: &Insn) -> Option<u32> {
-        (insn.is_valid() && insn.mnemonic == "sltiu").then(|| simm(insn.word) as u32)
+    fn fixed_size(&self) -> Option<u32> {
+        Some(4)
     }
 }
