@@ -315,6 +315,10 @@ tempo and MIDI events.
   (`SsSeqSetVol`) and `fade(slot, volume, frames, then_stop)`
   (`SsSeqSetCrescendo` / `SsSeqSetDecrescendo`) change notes already
   sounding. Two slots fading opposite ways crossfade.
+- `pause(slot)` (`SsSeqPause`) holds a song where it is and stops its
+  notes; `replay(slot)` (`SsSeqReplay`) goes on from there; `paused`
+  asks. A paused slot still fades, so a game can replay at volume 0 and
+  fade in (Rugrats around its in-game cinematics).
 - `key_on(program, tone, note, (left, right))` is `SsUtKeyOn` on the
   effects bank, on the effect voices in turn.
 

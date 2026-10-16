@@ -184,6 +184,8 @@ struct Player {
     /// to, the change a frame, and whether the slot stops there.
     volume: f32,
     fade: Option<(f32, f32, bool)>,
+    /// Held where it is (`SsSeqPause`) until replayed.
+    paused: bool,
 }
 
 impl Player {
@@ -201,6 +203,7 @@ impl Player {
             done: false,
             volume,
             fade: None,
+            paused: false,
         };
         p.wait = p.delta() as f64;
         p
@@ -304,6 +307,31 @@ impl Spu {
                 *v = None;
             }
         }
+    }
+
+    /// Pauses `slot`'s song where it is (`SsSeqPause`): its notes stop and
+    /// its events wait until [`Spu::replay`].
+    pub fn pause(&mut self, slot: usize) {
+        let Some(Some(p)) = self.songs.get_mut(slot) else { return };
+        p.paused = true;
+        for v in self.voices.iter_mut() {
+            if v.as_ref().is_some_and(|v| v.key.is_some_and(|k| k.0 == slot)) {
+                *v = None;
+            }
+        }
+    }
+
+    /// Goes on with `slot`'s paused song from where it stopped
+    /// (`SsSeqReplay`).
+    pub fn replay(&mut self, slot: usize) {
+        if let Some(Some(p)) = self.songs.get_mut(slot) {
+            p.paused = false;
+        }
+    }
+
+    /// Whether `slot`'s song is paused.
+    pub fn paused(&self, slot: usize) -> bool {
+        self.songs.get(slot).is_some_and(|s| s.as_ref().is_some_and(|p| p.paused))
     }
 
     /// Stops every song.
@@ -554,7 +582,9 @@ impl Spu {
     pub fn render(&mut self, out: &mut [i16]) {
         for frame in out.as_chunks_mut::<2>().0 {
             for slot in 0..self.songs.len() {
-                self.sequence(slot);
+                if !self.paused(slot) {
+                    self.sequence(slot);
+                }
             }
             self.step_fades();
             let (mut l, mut r) = (frame[0] as i32, frame[1] as i32);
@@ -640,6 +670,25 @@ mod tests {
         spu.stop(0);
         assert!(!spu.playing(0));
         assert_eq!(peak(&mut spu, 100), 0);
+    }
+
+    /// A paused song is silent and holds its place; replayed, it sounds
+    /// again from there.
+    #[test]
+    fn a_song_pauses_and_replays() {
+        let mut spu = Spu::new(1, 17..24);
+        spu.set_banks(bank(), bank());
+        spu.play(0, &held(), 1, 127);
+        assert!(peak(&mut spu, 2000) > 1000);
+        spu.pause(0);
+        let at = spu.songs[0].as_ref().map(|p| (p.pos, p.wait));
+        assert!(spu.paused(0) && spu.playing(0));
+        assert_eq!(peak(&mut spu, 2000), 0);
+        assert_eq!(spu.songs[0].as_ref().map(|p| (p.pos, p.wait)), at, "held where it was");
+        spu.replay(0);
+        assert!(!spu.paused(0));
+        peak(&mut spu, 10);
+        assert_ne!(spu.songs[0].as_ref().map(|p| (p.pos, p.wait)), at, "going on");
     }
 
     /// Two slots crossfade: one down to 0 and stopped, the other up.
