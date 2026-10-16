@@ -248,6 +248,8 @@ pub struct Spu {
     music: Option<Arc<Bank>>,
     effects: Option<Arc<Bank>>,
     songs: Vec<Option<Player>>,
+    /// Voices song notes may take: 0 up to this (`SsSetReservedVoice`).
+    reserved: usize,
     effect_voices: Range<usize>,
     next_effect: usize,
     clock: u64,
@@ -264,10 +266,17 @@ impl Spu {
             music: None,
             effects: None,
             songs: (0..slots).map(|_| None).collect(),
+            reserved: effect_voices.start,
             next_effect: effect_voices.start,
             effect_voices,
             clock: 0,
         }
+    }
+
+    /// The voices song notes may take, 0 to `n` (`SsSetReservedVoice`);
+    /// never the effects'. By default all below the effects'.
+    pub fn set_reserved_voices(&mut self, n: usize) {
+        self.reserved = n.min(self.effect_voices.start).max(1);
     }
 
     /// The banks songs and effects play through.
@@ -381,7 +390,7 @@ impl Spu {
             .filter(|t| (t.min_note..=t.max_note).contains(&note))
             .cloned()
             .collect();
-        let below = self.effect_voices.start;
+        let below = self.reserved;
         for t in tones {
             let vol = volumes(
                 &[
@@ -649,6 +658,25 @@ mod tests {
         assert_eq!((spu.playing(0), spu.volume(1)), (false, Some(90.0)));
         spu.set_volume(1, 30);
         assert_eq!(spu.volume(1), Some(30.0));
+    }
+
+    /// Song notes keep to the reserved voices: with 2, a third note takes
+    /// the oldest of those two, not a free voice above.
+    #[test]
+    fn notes_keep_to_the_reserved_voices() {
+        let mut spu = Spu::new(1, 17..24);
+        spu.set_banks(bank(), bank());
+        spu.set_reserved_voices(2);
+        let chord = Song {
+            id: 0,
+            resolution: 480,
+            tempo: 500_000,
+            events: vec![0, 0x90, 60, 127, 0, 0x90, 62, 127, 0, 0x90, 64, 127, 0x83, 0x60, 0xff, 0x2f, 0],
+        };
+        spu.play(0, &chord, 1, 127);
+        peak(&mut spu, 10);
+        let used: Vec<usize> = (0..VOICES).filter(|&k| spu.voices[k].is_some()).collect();
+        assert_eq!(used, [0, 1]);
     }
 
     /// Effects take their voices in turn and sound at their volumes.
