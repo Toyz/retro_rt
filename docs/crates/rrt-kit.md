@@ -2,7 +2,7 @@
 title: rrt-kit, the small things every port rewrites
 status: partial
 crates: rrt-kit
-covers: rrt_kit::cli::Args, rrt_kit::cli::Args::parse_env, rrt_kit::cli::Args::parse_from, rrt_kit::cli::parse, rrt_kit::cli::usage, rrt_kit::cli::Spec, rrt_kit::cli::Kind, rrt_kit::cli::Matches, rrt_kit::cli::FromArg, rrt_kit::cli::Size, rrt_kit::cli::Error, rrt_kit::compress::Lzss, rrt_kit::compress::Lzss::decode, rrt_kit::compress::Lzss::encode, rrt_kit::compress::FlagOrder, rrt_kit::compress::Token, rrt_kit::compress::lz10_decode, rrt_kit::compress::lz10_encode, rrt_kit::compress::packbits_decode, rrt_kit::compress::packbits_encode, rrt_kit::compress::rl_decode, rrt_kit::compress::rl_encode, rrt_kit::compress::Error, rrt_kit::Angle, rrt_kit::Angle4096, rrt_kit::Bam, rrt_kit::Angle::sin, rrt_kit::Angle::cos, rrt_kit::Angle::rotate, rrt_kit::Angle::convert, rrt_kit::atan2, rrt_kit::isqrt, rrt_kit::sqrt_q12, rrt_kit::hypot, rrt_kit::Generator, rrt_kit::Generator::next, rrt_kit::Generator::bits, rrt_kit::Generator::state, rrt_kit::Generator::set_state, rrt_kit::RngExt, rrt_kit::RngExt::modulo, rrt_kit::RngExt::scaled, rrt_kit::RngExt::top_bits, rrt_kit::RngExt::below, rrt_kit::RngExt::range, rrt_kit::RngExt::chance, rrt_kit::RngExt::pick, rrt_kit::RngExt::shuffle, rrt_kit::RngExt::unit_f32, rrt_kit::RngExt::skip, rrt_kit::rng::Lcg, rrt_kit::rng::Lcg::jump, rrt_kit::rng::Lcg64, rrt_kit::rng::Xorshift32, rrt_kit::rng::Lfsr, rrt_kit::rng::Lfsr::next_bit, rrt_kit::rng::TableRng, rrt_kit::rng::Pcg32, rrt_kit::rng::Counted, rrt_kit::rng::Recorded, rrt_kit::rng::Forced, rrt_kit::rng::Forced::force, rrt_kit::Staging, rrt_kit::Staging::pack, rrt_kit::Staging::begin, rrt_kit::Staging::bytes, rrt_kit::Pack, rrt_kit::Pool, rrt_kit::Pool::take, rrt_kit::Pool::give, rrt_kit::Pool::with_max_spare, rrt_kit::Pool::with_max_capacity, rrt_kit::Pool::trim, rrt_kit::SyncPool, rrt_kit::SyncPool::take, rrt_kit::SyncPool::take_vec, rrt_kit::SyncPool::give, rrt_kit::SyncPool::set_max_spare, rrt_kit::SyncPool::set_max_capacity, rrt_kit::SyncPool::trim, rrt_kit::Pooled, rrt_kit::Pooled::into_inner, rrt_kit::Slab, rrt_kit::Slab::insert, rrt_kit::Slab::get, rrt_kit::Slab::get_mut, rrt_kit::Slab::remove, rrt_kit::Slab::retain, rrt_kit::Handle, rrt_kit::Ring, rrt_kit::Ring::push, rrt_kit::Ring::iter, rrt_kit::Fixed, rrt_kit::Q12, rrt_kit::Fixed::from_raw, rrt_kit::Fixed::from_f32, rrt_kit::Fixed::to_f32, rrt_kit::Fixed::floor, rrt_kit::Reader, rrt_kit::Eof, rrt_kit::Pixel, rrt_kit::color::expand, rrt_kit::color::reduce, rrt_kit::color::to_rgba8, rrt_kit::Rgb555, rrt_kit::Rgb555::rgb8, rrt_kit::Rgb555::rgb8_shifted, rrt_kit::Rgb555::rgba8, rrt_kit::Argb1555, rrt_kit::Rgb565, rrt_kit::Bgr565, rrt_kit::Argb4444, rrt_kit::Abgr4444, rrt_kit::Rgba5551, rrt_kit::Rgb5a3, rrt_kit::Ia16, rrt_kit::Ia8, rrt_kit::Md333, rrt_kit::Sms222, rrt_kit::Rgb332, rrt_kit::PsmCt32, rrt_kit::color::ycbcr_to_rgb, rrt_kit::Range, rrt_kit::color::indexed4, rrt_kit::color::indexed8, rrt_kit::Nibbles, rrt_kit::color::ps2_clut_index, rrt_kit::bcd::decode, rrt_kit::bcd::encode, rrt_kit::bcd::msf_to_lba, rrt_kit::bcd::lba_to_msf, rrt_kit::adpcm::spu::decode_frame, rrt_kit::adpcm::spu::decode_sample, rrt_kit::adpcm::spu::decode, rrt_kit::adpcm::spu::interpolate, rrt_kit::adpcm::spu::GAUSS, rrt_kit::adpcm::spu::History, rrt_kit::adpcm::spu::Sample, rrt_kit::adpcm::xa::Decoder, rrt_kit::adpcm::xa::Decoder::decode, rrt_kit::adpcm::xa::Coding, rrt_kit::adpcm::xa::SECTOR_AUDIO, rrt_kit::adpcm::xa::Player, rrt_kit::adpcm::xa::Player::new, rrt_kit::adpcm::xa::Player::sector, rrt_kit::adpcm::xa::Player::into_sound, rrt_kit::adpcm::xa::SINGLE_SPEED, rrt_kit::adpcm::xa::DOUBLE_SPEED
+covers: rrt_kit::cli::Args, rrt_kit::cli::Args::parse_env, rrt_kit::cli::Args::parse_from, rrt_kit::cli::parse, rrt_kit::cli::usage, rrt_kit::cli::Spec, rrt_kit::cli::Kind, rrt_kit::cli::Matches, rrt_kit::cli::FromArg, rrt_kit::cli::Size, rrt_kit::cli::Error, rrt_kit::compress::Lzss, rrt_kit::compress::Lzss::decode, rrt_kit::compress::Lzss::encode, rrt_kit::compress::FlagOrder, rrt_kit::compress::Token, rrt_kit::compress::lz10_decode, rrt_kit::compress::lz10_encode, rrt_kit::compress::packbits_decode, rrt_kit::compress::packbits_encode, rrt_kit::compress::rl_decode, rrt_kit::compress::rl_encode, rrt_kit::compress::Error, rrt_kit::Angle, rrt_kit::Angle4096, rrt_kit::Bam, rrt_kit::Angle::sin, rrt_kit::Angle::cos, rrt_kit::Angle::rotate, rrt_kit::Angle::convert, rrt_kit::atan2, rrt_kit::isqrt, rrt_kit::sqrt_q12, rrt_kit::hypot, rrt_kit::Generator, rrt_kit::Generator::next, rrt_kit::Generator::bits, rrt_kit::Generator::state, rrt_kit::Generator::set_state, rrt_kit::RngExt, rrt_kit::RngExt::modulo, rrt_kit::RngExt::scaled, rrt_kit::RngExt::top_bits, rrt_kit::RngExt::below, rrt_kit::RngExt::range, rrt_kit::RngExt::chance, rrt_kit::RngExt::pick, rrt_kit::RngExt::shuffle, rrt_kit::RngExt::unit_f32, rrt_kit::RngExt::skip, rrt_kit::rng::Lcg, rrt_kit::rng::Lcg::jump, rrt_kit::rng::Lcg64, rrt_kit::rng::Xorshift32, rrt_kit::rng::Lfsr, rrt_kit::rng::Lfsr::next_bit, rrt_kit::rng::TableRng, rrt_kit::rng::Pcg32, rrt_kit::rng::Counted, rrt_kit::rng::Recorded, rrt_kit::rng::Forced, rrt_kit::rng::Forced::force, rrt_kit::Staging, rrt_kit::Staging::pack, rrt_kit::Staging::begin, rrt_kit::Staging::bytes, rrt_kit::Pack, rrt_kit::Pool, rrt_kit::Pool::take, rrt_kit::Pool::give, rrt_kit::Pool::with_max_spare, rrt_kit::Pool::with_max_capacity, rrt_kit::Pool::trim, rrt_kit::SyncPool, rrt_kit::SyncPool::take, rrt_kit::SyncPool::take_vec, rrt_kit::SyncPool::give, rrt_kit::SyncPool::set_max_spare, rrt_kit::SyncPool::set_max_capacity, rrt_kit::SyncPool::trim, rrt_kit::Pooled, rrt_kit::Pooled::into_inner, rrt_kit::Slab, rrt_kit::Slab::insert, rrt_kit::Slab::get, rrt_kit::Slab::get_mut, rrt_kit::Slab::remove, rrt_kit::Slab::retain, rrt_kit::Handle, rrt_kit::Ring, rrt_kit::Ring::push, rrt_kit::Ring::iter, rrt_kit::Fixed, rrt_kit::Q12, rrt_kit::Fixed::from_raw, rrt_kit::Fixed::from_f32, rrt_kit::Fixed::to_f32, rrt_kit::Fixed::floor, rrt_kit::Reader, rrt_kit::Eof, rrt_kit::Pixel, rrt_kit::color::expand, rrt_kit::color::reduce, rrt_kit::color::to_rgba8, rrt_kit::Rgb555, rrt_kit::Rgb555::rgb8, rrt_kit::Rgb555::rgb8_shifted, rrt_kit::Rgb555::rgba8, rrt_kit::Argb1555, rrt_kit::Rgb565, rrt_kit::Bgr565, rrt_kit::Argb4444, rrt_kit::Abgr4444, rrt_kit::Rgba5551, rrt_kit::Rgb5a3, rrt_kit::Ia16, rrt_kit::Ia8, rrt_kit::Md333, rrt_kit::Sms222, rrt_kit::Rgb332, rrt_kit::PsmCt32, rrt_kit::color::ycbcr_to_rgb, rrt_kit::Range, rrt_kit::color::indexed4, rrt_kit::color::indexed8, rrt_kit::Nibbles, rrt_kit::color::ps2_clut_index, rrt_kit::bcd::decode, rrt_kit::bcd::encode, rrt_kit::bcd::msf_to_lba, rrt_kit::bcd::lba_to_msf, rrt_kit::adpcm::spu::decode_frame, rrt_kit::adpcm::spu::decode_sample, rrt_kit::adpcm::spu::decode, rrt_kit::adpcm::spu::interpolate, rrt_kit::adpcm::spu::GAUSS, rrt_kit::adpcm::spu::History, rrt_kit::adpcm::spu::Sample, rrt_kit::adpcm::xa::Decoder, rrt_kit::adpcm::xa::Decoder::decode, rrt_kit::adpcm::xa::Coding, rrt_kit::adpcm::xa::SECTOR_AUDIO, rrt_kit::adpcm::xa::Player, rrt_kit::adpcm::xa::Player::new, rrt_kit::adpcm::xa::Player::sector, rrt_kit::adpcm::xa::Player::into_sound, rrt_kit::adpcm::xa::SINGLE_SPEED, rrt_kit::adpcm::xa::DOUBLE_SPEED, rrt_kit::libsnd::vab::Vab, rrt_kit::libsnd::vab::Vab::parse, rrt_kit::libsnd::vab::Vab::vag, rrt_kit::libsnd::vab::Vab::tones_of, rrt_kit::libsnd::vab::Vab::program_volume, rrt_kit::libsnd::vab::Program, rrt_kit::libsnd::vab::Tone, rrt_kit::libsnd::sep::Song, rrt_kit::libsnd::sep::parse, rrt_kit::libsnd::Bank, rrt_kit::libsnd::Bank::new, rrt_kit::libsnd::Spu, rrt_kit::libsnd::Spu::new, rrt_kit::libsnd::Spu::set_banks, rrt_kit::libsnd::Spu::play, rrt_kit::libsnd::Spu::stop, rrt_kit::libsnd::Spu::stop_all, rrt_kit::libsnd::Spu::playing, rrt_kit::libsnd::Spu::volume, rrt_kit::libsnd::Spu::set_volume, rrt_kit::libsnd::Spu::fade, rrt_kit::libsnd::Spu::key_on, rrt_kit::libsnd::Spu::render, rrt_kit::libsnd::RATE, rrt_kit::libsnd::VOICES, rrt_kit::libsnd::MAIN_VOLUME
 ---
 
 # rrt-kit
@@ -278,8 +278,53 @@ drops. The tests:
 - `a_dropped_sector_leaves_the_history_alone`
 - `silence_until_the_first_sector_and_single_speed_is_half_as_fast`
 
-The voice state machine, ADSR envelopes, reverb, the mixer, the drive's
-volume matrix and which sectors make a stream are each game's sound engine.
+Reverb, the drive's volume matrix and which sectors make a stream are each
+game's sound engine; for games on Sony's libsnd the voices, envelopes,
+sequencer and mixer are `libsnd`, below.
+
+## Sony's libsnd: `libsnd`
+
+From rugrats, for PS1 games that play SEP/SEQ songs through VAB banks.
+
+`libsnd::vab` reads the `.VH` bank header: `Program`s (tones, volume, pan),
+`Tone`s (note range, centre note and fine tuning, pitch bend range, the
+ADSR registers, the sample), and the sample sizes, with `Vab::vag` cutting
+a sample out of the `.VB`. Only the first `programs` programs (the header's
+count) have tone blocks. Some banks list more past the count (nine of
+Rugrats', one tone each up to program 14, nothing behind them); reading
+those went past the VH's end, and they are dropped.
+
+`libsnd::sep` reads SEP packs (`pQES`): each `Song`'s id, resolution,
+tempo and MIDI events.
+
+`Bank::new(vh, vb)` decodes every sample (`adpcm::spu::decode_sample`).
+`Spu::new(slots, effect_voices)` is the software SPU:
+
+- 24 voices (`VOICES`), the SPU's ADSR envelope (psx-spx's generator),
+  Gaussian interpolation, pitch from the tone's centre note, fine tuning
+  and the channel's bend; output at 44100 Hz (`RATE`) stereo, over what
+  the buffer holds, at libsnd's main volume (`MAIN_VOLUME`).
+- Song slots (libsnd's SEQ access numbers): `play(slot, song, loops,
+  volume)`, `stop`, `stop_all`, `playing`. The sequencer keeps running
+  status, tempo events, CC 7 / 10 / 11, program changes, pitch bend, and
+  the NRPN loop marks (99 = 20 a loop start with its count, 30 its end).
+  A note takes a free voice below the effects', else the oldest.
+- A slot's volume (0-127) applies as the voices mix, so `set_volume`
+  (`SsSeqSetVol`) and `fade(slot, volume, frames, then_stop)`
+  (`SsSeqSetCrescendo` / `SsSeqSetDecrescendo`) change notes already
+  sounding. Two slots fading opposite ways crossfade.
+- `key_on(program, tone, note, (left, right))` is `SsUtKeyOn` on the
+  effects bank, on the effect voices in turn.
+
+Volume law: velocity, tone, program, channel, expression and master
+volumes multiply, each out of 127; pans add around 64. Not modelled:
+reverb, vibrato, portamento, libsnd's exact volume and pitch tables.
+Which files make a game's song sets, its effect table and when its songs
+switch stay in the game. The tests:
+- `programs_and_tones_line_up`, `programs_past_the_count_are_dropped`,
+  `short_or_foreign_headers_are_errors`
+- `two_songs_back_to_back`
+- `a_song_sounds_and_stops`, `slots_fade_and_stop`, `effects_key_on`
 
 ## Tests
 

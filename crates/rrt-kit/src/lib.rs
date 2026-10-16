@@ -25,7 +25,8 @@
 //!
 //! - Command lines: [`cli`], the parser behind `#[derive(rrt::Args)]`.
 //! - The PlayStation's sound formats: [`adpcm`]'s PS-ADPCM with the SPU's
-//!   Gaussian interpolation, and CD-XA ADPCM with the drive's resampling.
+//!   Gaussian interpolation, and CD-XA ADPCM with the drive's resampling;
+//!   [`libsnd`]'s VAB banks, SEP songs and a software SPU that plays them.
 //!
 //! No dependencies, no I/O, nothing console-specific beyond these shared
 //! encodings. See `docs/crates/rrt-kit.md`.
@@ -38,6 +39,7 @@ pub mod cli;
 pub mod color;
 pub mod compress;
 pub mod fixed;
+pub mod libsnd;
 pub mod pool;
 pub mod ring;
 pub mod rng;
