@@ -2,7 +2,7 @@
 title: rrt-app, the engine loop
 status: solid
 crates: rrt-app
-covers: rrt_app::Game, rrt_app::Game::init, rrt_app::Game::tick, rrt_app::Game::draw, rrt_app::Game::event, rrt_app::Game::exit, rrt_app::Init, rrt_app::Tick, rrt_app::Tick::pressed, rrt_app::Tick::exit, rrt_app::Tick::set_title, rrt_app::Tick::rumble, rrt_app::Tick::dt, rrt_app::Tick::time, rrt_app::Tick::log_command, rrt_app::Console, rrt_app::Console::event, rrt_app::Console::key, rrt_app::Console::run, rrt_app::Console::take_commands, rrt_app::Console::say, rrt_app::Console::describe, rrt_app::Console::overlay, rrt_app::ConsoleKey, rrt_app::Draw, rrt_app::Draw::encoder, rrt_app::Draw::present_picture, rrt_app::Draw::present_target, rrt_app::Draw::submit, rrt_app::run, rrt_app::headless, rrt_app::launch, rrt_app::IntoGame, rrt_app::AppArgs, rrt_app::AppArgs::apply, rrt_app::WithArgs, rrt_app::headless_shots, rrt_app::Config, rrt_app::Clock, rrt_app::Clock::due, rrt_app::rate, rrt_app::init_logging
+covers: rrt_app::Game, rrt_app::Game::init, rrt_app::Game::tick, rrt_app::Game::draw, rrt_app::Game::event, rrt_app::Game::exit, rrt_app::Init, rrt_app::Tick, rrt_app::Tick::pressed, rrt_app::Tick::exit, rrt_app::Tick::set_title, rrt_app::Tick::rumble, rrt_app::Tick::dt, rrt_app::Tick::time, rrt_app::Tick::log_command, rrt_app::Tick::scripted, rrt_app::Tick::exiting, rrt_app::Console, rrt_app::Console::event, rrt_app::Console::key, rrt_app::Console::run, rrt_app::Console::take_commands, rrt_app::Console::say, rrt_app::Console::describe, rrt_app::Console::overlay, rrt_app::ConsoleKey, rrt_app::Draw, rrt_app::Draw::encoder, rrt_app::Draw::present_picture, rrt_app::Draw::present_target, rrt_app::Draw::submit, rrt_app::run, rrt_app::headless, rrt_app::launch, rrt_app::IntoGame, rrt_app::AppArgs, rrt_app::AppArgs::apply, rrt_app::WithArgs, rrt_app::headless_shots, rrt_app::Config, rrt_app::Clock, rrt_app::Clock::due, rrt_app::rate, rrt_app::init_logging
 ---
 
 # rrt-app
@@ -27,7 +27,7 @@ pub trait Game: 'static {
 | context | holds | asks of the loop |
 | --- | --- | --- |
 | `Init` | `gpu`, `format` (surface, usually sRGB), `plain_format` (same without sRGB), `window` (`&Arc<Window>`, clone to keep; None headless) | - |
-| `Tick` | `pad`, `previous` (the pad latched this tick and last), `frame` (ticks before this one), `dt` (the fixed step, `1 / hz`), `pad_line`, `commands` (replayed console commands for this frame) | `exit()`, `set_title()`, `rumble(Motors)`, `pressed()`, `time()` (`dt * frame`), `log_command()` |
+| `Tick` | `pad`, `previous` (the pad latched this tick and last), `frame` (ticks before this one), `dt` (the fixed step, `1 / hz`), `pad_line`, `commands` (replayed console commands for this frame) | `exit()`, `set_title()`, `rumble(Motors)`, `pressed()`, `time()` (`dt * frame`), `log_command()`; `Tick::scripted(pad, previous, frame, dt)` makes one outside the loop (a test or a tool driving `Game::tick` with no window or GPU), `exiting()` reads back `exit()` |
 | `Draw` | `gpu`, `presenter`, `target` (frame view, `format`), `plain` (same frame, `plain_format`), `width`, `height` | `encoder()`, `present_picture()`, `present_target()`, `submit()` |
 
 A game that builds a CPU picture calls `present_picture`; one with its own
@@ -160,6 +160,8 @@ Console: `closed_it_takes_only_the_toggle`,
 `typed_lines_go_to_the_game_and_help_and_clear_are_answered`,
 `up_and_down_walk_the_history`, `the_scrollback_keeps_its_limit`,
 `the_overlay_is_drawn_only_while_open`.
+`a_scripted_tick_drives_a_game`: ticks made with `Tick::scripted` count a
+held button once and see `exit()` through `exiting()`.
 Windowed (`tests/window.rs`, its own `main` because winit needs the main
 thread; CI runs it under Xvfb): `run` opens a window and gives it to `init`,
 ticks 60 times at 120 Hz in no less than half a second, sees the script's

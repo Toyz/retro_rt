@@ -128,6 +128,19 @@ impl Tick {
         }
     }
 
+    /// A tick made outside the loop, to drive a [`Game`] from a test or a
+    /// tool with no window and no GPU: this frame's pad, the last one's, the
+    /// ticks run before it and the fixed step. The loop's own requests
+    /// (exit, title, rumble) start unset; read [`Tick::exiting`] after.
+    pub fn scripted(pad: Pad, previous: Pad, frame: u64, dt: Duration) -> Tick {
+        Tick::new(pad, previous, frame, dt)
+    }
+
+    /// Whether the game asked to end the loop this tick ([`Tick::exit`]).
+    pub fn exiting(&self) -> bool {
+        self.exit
+    }
+
     /// Game time at the start of this tick: `dt * frame`.
     pub fn time(&self) -> Duration {
         self.dt.mul_f64(self.frame as f64)
@@ -729,6 +742,37 @@ mod tests {
         assert_eq!((c.max_catch_up, c.vsync, c.fps_cap, c.log.as_str()), (2, false, Some(144), "debug"));
         assert!(c.fullscreen && c.pad_log && c.script.is_some());
         assert_eq!(Config::default().fps_cap(0).fps_cap, None, "0 is no cap");
+    }
+
+    #[test]
+    fn a_scripted_tick_drives_a_game() {
+        struct Count(u32);
+        impl Game for Count {
+            fn tick(&mut self, t: &mut Tick) {
+                if t.pressed().contains(Buttons::CROSS) {
+                    self.0 += 1;
+                }
+                if self.0 == 2 {
+                    t.exit();
+                }
+            }
+            fn draw(&mut self, _: &mut Draw<'_>) {}
+        }
+        let cross = Pad { buttons: Buttons::CROSS, ..Pad::default() };
+        let dt = Duration::from_secs_f64(1.0 / rate::NTSC);
+        let mut g = Count(0);
+        let mut previous = Pad::default();
+        let mut exited = None;
+        for (frame, pad) in [cross, cross, Pad::default(), cross].into_iter().enumerate() {
+            let mut t = Tick::scripted(pad, previous, frame as u64, dt);
+            g.tick(&mut t);
+            previous = pad;
+            if t.exiting() {
+                exited = Some(frame);
+                break;
+            }
+        }
+        assert_eq!((g.0, exited), (2, Some(3)), "a held button counts once; the second press ends it");
     }
 
     #[test]
