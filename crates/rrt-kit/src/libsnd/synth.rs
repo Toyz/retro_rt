@@ -111,6 +111,9 @@ struct Voice {
     pitch: u32,
     env: Envelope,
     vol: (i32, i32),
+    /// The volume its tone, program and bank give, before an effect's
+    /// (left, right) scales it: what `set_voice_volume` scales again.
+    base: (i32, i32),
     /// The song slot, channel and note playing, for note-offs and the
     /// slot's volume; None for an effect.
     key: Option<(usize, u8, u8)>,
@@ -373,18 +376,51 @@ impl Spu {
     /// Keys on tone `tone` of program `program` in the effects bank at
     /// `note`, on the next effect voice, at volumes (left, right) 0-127
     /// (`SsUtKeyOn`'s voll and volr).
-    pub fn key_on(&mut self, program: u8, tone: u8, note: u8, (left, right): (i32, i32)) {
-        let Some(bank) = self.effects.clone() else { return };
-        let Some(t) = bank.vab.tones_of(program).get(tone as usize).cloned() else { return };
+    pub fn key_on(&mut self, program: u8, tone: u8, note: u8, at: (i32, i32)) {
         if self.effect_voices.is_empty() {
             return;
         }
-        let (pv, pp) = bank.vab.program_volume(program);
-        let (l, r) = volumes(&[t.volume as i32, pv as i32, bank.vab.master_volume as i32], &[t.pan as i32, pp as i32]);
-        let vol = (l * left / 127, r * right / 127);
         let k = self.next_effect;
         self.next_effect = if k + 1 >= self.effect_voices.end { self.effect_voices.start } else { k + 1 };
-        self.voices[k] = self.voice(&bank, &t, note, 0, vol, None);
+        self.key_on_voice(k, program, tone, note, at);
+    }
+
+    /// Keys on tone `tone` of program `program` in the effects bank at
+    /// `note` on voice `voice` itself (`SsUtKeyOnV`), at volumes (left,
+    /// right) 0-127; what the voice played stops.
+    pub fn key_on_voice(&mut self, voice: usize, program: u8, tone: u8, note: u8, (left, right): (i32, i32)) {
+        let Some(bank) = self.effects.clone() else { return };
+        let Some(t) = bank.vab.tones_of(program).get(tone as usize).cloned() else { return };
+        if voice >= self.voices.len() {
+            return;
+        }
+        let (pv, pp) = bank.vab.program_volume(program);
+        let base = volumes(&[t.volume as i32, pv as i32, bank.vab.master_volume as i32], &[t.pan as i32, pp as i32]);
+        let vol = (base.0 * left / 127, base.1 * right / 127);
+        self.voices[voice] = self.voice(&bank, &t, note, 0, vol, None).map(|v| Voice { base, ..v });
+    }
+
+    /// Sets voice `voice`'s volumes (left, right) 0-127 against its
+    /// tone's (`SsUtSetVVol`), as it plays.
+    pub fn set_voice_volume(&mut self, voice: usize, (left, right): (i32, i32)) {
+        if let Some(Some(v)) = self.voices.get_mut(voice) {
+            v.vol = (v.base.0 * left / 127, v.base.1 * right / 127);
+        }
+    }
+
+    /// Keys voice `voice` off (`SsUtKeyOffV`): its envelope releases.
+    pub fn key_off(&mut self, voice: usize) {
+        if let Some(Some(v)) = self.voices.get_mut(voice)
+            && v.env.phase != Phase::Off
+        {
+            v.env.phase = Phase::Release;
+            v.env.wait = 0;
+        }
+    }
+
+    /// Whether voice `voice` is sounding.
+    pub fn voice_on(&self, voice: usize) -> bool {
+        self.voices.get(voice).is_some_and(|v| v.as_ref().is_some_and(|v| v.env.phase != Phase::Off))
     }
 
     fn voice(
@@ -403,6 +439,7 @@ impl Spu {
             pitch: pitch(t, note, bend),
             env: Envelope::new(t.adsr1, t.adsr2),
             vol,
+            base: vol,
             key,
             started: self.clock,
         })
@@ -740,5 +777,24 @@ mod tests {
         assert!(l > 1000 && r == 0, "left only: {l} {r}");
         spu.key_on(9, 0, 60, (127, 127));
         spu.key_on(0, 5, 60, (127, 127));
+    }
+
+    /// An effect keyed on a voice of its own holds it, its volume set as
+    /// it plays; keyed off, it releases and the voice falls silent.
+    #[test]
+    fn a_voice_keyed_on_turned_and_off() {
+        let mut spu = Spu::new(1, 22..24);
+        spu.set_banks(bank(), bank());
+        spu.key_on_voice(15, 0, 0, 60, (127, 127));
+        assert!(spu.voice_on(15));
+        let loud = peak(&mut spu, 2000);
+        spu.set_voice_volume(15, (32, 32));
+        let quiet = peak(&mut spu, 2000);
+        assert!(loud > 1000 && quiet < loud / 2, "{loud} {quiet}");
+        spu.key_on(0, 0, 60, (127, 127));
+        assert!(spu.voice_on(15), "the effects take their own voices");
+        spu.key_off(15);
+        peak(&mut spu, 44100);
+        assert!(!spu.voice_on(15));
     }
 }
